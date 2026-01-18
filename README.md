@@ -296,3 +296,19 @@ mix test
 - The report format stays the same in both modes, using a single `ReportGenerator`.
 
 ---
+
+14) Execution
+
+To create a executable file, run:
+
+```bash
+mix escript.build
+```
+
+15) Usage
+
+To run the executable file, use:
+
+```bash
+./file_processor data 
+```
