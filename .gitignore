@@ -27,3 +27,5 @@ file_processor-*.tar
 
 # Ignore output file
 /reporte_final.txt
+
+file_procesor
