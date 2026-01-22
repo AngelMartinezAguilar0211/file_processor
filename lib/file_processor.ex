@@ -255,19 +255,13 @@ defmodule FileProcessor do
 
     # Delete benchmark reports and logs
     case File.rm("benchmark_parallel.txt") do
-      :ok ->
-        :ok
-
-      {:error, reason} ->
-        IO.puts("Could not delete benchmark_parallel.txt: #{inspect(reason)}")
+      :ok -> :ok
+      {:error, reason} -> IO.puts("Could not delete benchmark_parallel.txt: #{inspect(reason)}")
     end
 
     case File.rm("benchmark_sequential.txt") do
-      :ok ->
-        :ok
-
-      {:error, reason} ->
-        IO.puts("Could not delete benchmark_sequential.txt: #{inspect(reason)}")
+      :ok -> :ok
+      {:error, reason} -> IO.puts("Could not delete benchmark_sequential.txt: #{inspect(reason)}")
     end
 
     case File.rm("logs/benchmark_parallel_errors.log") do
@@ -710,8 +704,6 @@ defmodule FileProcessor do
   end
 
   # Normalizes per-file partial errors (row/line errors) into report/log errors.
-  # Partial details were already present in item.errors, but they were not included
-  # in report_data.errors, so they never appeared in the final report nor in the log.
   defp partial_errors_from_item(%{status: :partial, path: path, errors: errs})
        when is_binary(path) and is_list(errs) do
     Enum.map(errs, fn e ->
@@ -748,7 +740,6 @@ defmodule FileProcessor do
   end
 
   # Logs a structured event line into the error log file (if enabled).
-  # This is used for operational events that should not be part of the report errors.
   defp log_event(error_log_path, mode, path, reason, details) do
     log_errors(error_log_path, [%{path: path, reason: reason, details: details}], mode)
   end
@@ -826,7 +817,6 @@ defmodule FileProcessor do
 
             print_parallel_progress(new_done, total, path, item.status)
 
-            # Accumulate by file type, storing the original index
             {csv_acc2, json_acc2, log_acc2} =
               case type do
                 :csv -> {[{idx, item} | csv_acc], json_acc, log_acc}
@@ -930,7 +920,6 @@ defmodule FileProcessor do
               )
             else
               new_done = done + 1
-
               print_parallel_progress(new_done, total, meta.path, :failed)
 
               # Build a failed item structure consistent with the report format
@@ -1353,15 +1342,18 @@ defmodule FileProcessor do
     end
   end
 
-  # Calculates total sales and unique products from a list of CSV files
+  # Calculates total sales and unique products from a list of CSV files.
+  # Only status == :ok files are included to avoid partial/failed data.
   defp consolidate_csv(files) do
+    ok_files = Enum.filter(files, &(&1.status == :ok))
+
     total_sales =
-      Enum.reduce(files, 0.0, fn f, acc ->
+      Enum.reduce(ok_files, 0.0, fn f, acc ->
         acc + f.metrics.total_sales
       end)
 
     products_union =
-      Enum.reduce(files, MapSet.new(), fn f, acc ->
+      Enum.reduce(ok_files, MapSet.new(), fn f, acc ->
         cond do
           match?(%MapSet{}, Map.get(f, :products_set)) ->
             MapSet.union(acc, f.products_set)
@@ -1380,9 +1372,12 @@ defmodule FileProcessor do
     }
   end
 
-  # Sums total, active and inactive users
+  # Sums total, active and inactive users.
+  # Only status == :ok files are included to avoid partial/failed data.
   defp consolidate_json(files) do
-    Enum.reduce(files, %{total_users: 0, active_users: 0, inactive_users: 0}, fn f, acc ->
+    ok_files = Enum.filter(files, &(&1.status == :ok))
+
+    Enum.reduce(ok_files, %{total_users: 0, active_users: 0, inactive_users: 0}, fn f, acc ->
       %{
         total_users: acc.total_users + f.metrics.total_users,
         active_users: acc.active_users + f.metrics.active_users,
@@ -1391,13 +1386,15 @@ defmodule FileProcessor do
     end)
   end
 
-  # Sums total entries and fuses maps
+  # Sums total entries and fuses maps.
+  # Only status == :ok files are included to avoid partial/failed data.
   defp consolidate_log(files) do
-    # Sum total log entries across files
-    total_entries = Enum.reduce(files, 0, fn f, acc -> acc + f.metrics.total_entries end)
+    ok_files = Enum.filter(files, &(&1.status == :ok))
+
+    total_entries = Enum.reduce(ok_files, 0, fn f, acc -> acc + f.metrics.total_entries end)
 
     by_level =
-      Enum.reduce(files, %{}, fn f, acc ->
+      Enum.reduce(ok_files, %{}, fn f, acc ->
         Enum.reduce(f.metrics.by_level, acc, fn {level, count}, a ->
           Map.update(a, level, count, &(&1 + count))
         end)

@@ -8,22 +8,30 @@ defmodule FileProcessor.ReportGenerator do
     # Build the report header section
     header = """
     ================================================================================
-                        REPORTE DE PROCESAMIENTO DE ARCHIVOS
+                        FILE PROCESSING REPORT
     ================================================================================
-    Fecha de generación: #{now}
-    Directorio único: #{report_data.directory || "N/A"}
-    Modo de procesamiento: #{report_data.mode}
+    Generation date: #{now}
+    Single directory: #{report_data.directory || "N/A"}
+    Processing mode: #{report_data.mode}
     """
 
     # Build each major section of the report independently
     summary = build_summary(report_data)
+
     csv_section = build_csv(report_data.csv_files, report_data.csv_totals)
     json_section = build_json(report_data.json_files, report_data.json_totals)
     log_section = build_log(report_data.log_files, report_data.log_totals)
+
     errors_section = build_errors(report_data.errors)
 
-    # Concatenate all sections into a single string
-    [header, summary, csv_section, json_section, log_section, errors_section, footer()]
+    # Concatenate only non-empty optional sections
+    optional_sections =
+      [csv_section, json_section, log_section]
+      |> Enum.reject(&(&1 == ""))
+
+    [header, summary]
+    |> Kernel.++(optional_sections)
+    |> Kernel.++([errors_section, footer()])
     |> Enum.join("\n")
   end
 
@@ -51,125 +59,180 @@ defmodule FileProcessor.ReportGenerator do
 
     """
     --------------------------------------------------------------------------------
-    RESUMEN EJECUTIVO
+    EXECUTIVE SUMMARY
     --------------------------------------------------------------------------------
-    Total de archivos procesados: #{total}
-      - Archivos CSV: #{d.counts.csv}
-      - Archivos JSON: #{d.counts.json}
-      - Archivos LOG: #{d.counts.log}
+    Total files processed: #{total}
+      - CSV files: #{d.counts.csv}
+      - JSON files: #{d.counts.json}
+      - LOG files: #{d.counts.log}
 
-    Tiempo total de procesamiento: #{format_seconds(d.elapsed_seconds)} segundos
-    Archivos con errores: #{failed}
-    Tasa de éxito: #{Float.round(success_rate, 1)}%
+    Total processing time: #{format_seconds(d.elapsed_seconds)} seconds
+    Files with errors: #{failed}
+    Success rate: #{Float.round(success_rate, 1)}%
     """
   end
 
   # Builds the CSV metrics section, including per-file metrics
   # and consolidated totals.
+  #
+  # Rules:
+  # - If there are no CSV files at all, return "" so the section is omitted.
+  # - Only include per-file metrics for status == :ok.
+  # - Files with :partial or :failed are listed as omitted with a short message.
+  defp build_csv([], _totals), do: ""
+
   defp build_csv(files, totals) do
-    # Generate a formatted block per CSV file
+    ok_files = Enum.filter(files, &(&1.status == :ok))
+    bad_files = Enum.reject(files, &(&1.status == :ok))
+
     per_file =
-      files
+      ok_files
       |> Enum.map(fn f ->
         """
-        [Archivo: #{Path.basename(f.path)}]
-          * Total de ventas: $#{Float.round(f.metrics.total_sales, 2)}
-          * Productos únicos: #{f.metrics.unique_products}
-          * Producto más vendido: #{format_top(f.metrics.top_product, "unidades")}
-          * Categoría con mayor ingreso: #{format_top_money(f.metrics.top_category)}
-          * Promedio de descuento aplicado: #{Float.round(f.metrics.avg_discount_pct, 2)}%
-          * Período: #{format_range(f.metrics.date_range)}
+        [File: #{Path.basename(f.path)}]
+          * Total sales: $#{Float.round(f.metrics.total_sales, 2)}
+          * Unique products: #{f.metrics.unique_products}
+          * Best-selling product: #{format_top(f.metrics.top_product, "units")}
+          * Highest-revenue category: #{format_top_money(f.metrics.top_category)}
+          * Average discount applied: #{Float.round(f.metrics.avg_discount_pct, 2)}%
+          * Period: #{format_range(f.metrics.date_range)}
         """
       end)
       |> Enum.join("\n")
 
-    # Consolidated totals across all CSV files
+    omitted = format_omitted_files(bad_files)
+
     totals_text =
-      """
-      Totales Consolidados CSV:
-        - Ventas totales: $#{Float.round(totals.total_sales, 2)}
-        - Productos únicos totales: #{totals.unique_products}
-      """
+      cond do
+        ok_files == [] ->
+          "Consolidated CSV totals: N/A (no CSV files with :ok status)\n"
+
+        true ->
+          """
+          Consolidated CSV totals:
+            - Total sales: $#{Float.round(totals.total_sales, 2)}
+            - Total unique products: #{totals.unique_products}
+          """
+      end
 
     """
     --------------------------------------------------------------------------------
-    MÉTRICAS DE ARCHIVOS CSV
+    CSV FILE METRICS
     --------------------------------------------------------------------------------
-    #{if per_file == "", do: "No CSV files processed.\n", else: per_file}
+    #{if per_file == "", do: "No CSV metrics were generated (no files with :ok status).\n", else: per_file}
+    #{omitted}
     #{totals_text}
     """
   end
 
   # Builds the JSON metrics section, including per-file metrics
   # and consolidated totals.
+  #
+  # Rules:
+  # - If there are no JSON files at all, return "" so the section is omitted.
+  # - Only include per-file metrics for status == :ok.
+  # - Files with :partial or :failed are listed as omitted with a short message.
+  defp build_json([], _totals), do: ""
+
   defp build_json(files, totals) do
+    ok_files = Enum.filter(files, &(&1.status == :ok))
+    bad_files = Enum.reject(files, &(&1.status == :ok))
+
     per_file =
-      files
+      ok_files
       |> Enum.map(fn f ->
         """
-        [Archivo: #{Path.basename(f.path)}]
-          * Usuarios registrados: #{f.metrics.total_users}
-          * Usuarios activos: #{f.metrics.active_users}
-          * Usuarios inactivos: #{f.metrics.inactive_users}
-          * Duración promedio de sesión: #{Float.round(f.metrics.avg_session_seconds / 60.0, 2)} minutos
-          * Páginas visitadas totales: #{f.metrics.total_pages}
-          * Top acciones:
+        [File: #{Path.basename(f.path)}]
+          * Registered users: #{f.metrics.total_users}
+          * Active users: #{f.metrics.active_users}
+          * Inactive users: #{f.metrics.inactive_users}
+          * Average session duration: #{Float.round(f.metrics.avg_session_seconds / 60.0, 2)} minutes
+          * Total pages visited: #{f.metrics.total_pages}
+          * Top actions:
         #{format_actions(f.metrics.top_actions)}
-          * Hora pico de actividad: #{format_peak_hour(f.metrics.peak_hour)}
+          * Peak activity hour: #{format_peak_hour(f.metrics.peak_hour)}
         """
       end)
       |> Enum.join("\n")
 
+    omitted = format_omitted_files(bad_files)
+
     totals_text =
-      """
-      Totales Consolidados JSON:
-        - Usuarios totales (suma): #{totals.total_users}
-        - Activos (suma): #{totals.active_users}
-        - Inactivos (suma): #{totals.inactive_users}
-      """
+      cond do
+        ok_files == [] ->
+          "Consolidated JSON totals: N/A (no JSON files with :ok status)\n"
+
+        true ->
+          """
+          Consolidated JSON totals:
+            - Total users (sum): #{totals.total_users}
+            - Active (sum): #{totals.active_users}
+            - Inactive (sum): #{totals.inactive_users}
+          """
+      end
 
     """
     --------------------------------------------------------------------------------
-    MÉTRICAS DE ARCHIVOS JSON
+    JSON FILE METRICS
     --------------------------------------------------------------------------------
-    #{if per_file == "", do: "No JSON files processed.\n", else: per_file}
+    #{if per_file == "", do: "No JSON metrics were generated (no files with :ok status).\n", else: per_file}
+    #{omitted}
     #{totals_text}
     """
   end
 
   # Builds the LOG metrics section, including per-file metrics
   # and consolidated totals.
+  #
+  # Rules:
+  # - If there are no LOG files at all, return "" so the section is omitted.
+  # - Only include per-file metrics for status == :ok.
+  # - Files with :partial or :failed are listed as omitted with a short message.
+  defp build_log([], _totals), do: ""
+
   defp build_log(files, totals) do
+    ok_files = Enum.filter(files, &(&1.status == :ok))
+    bad_files = Enum.reject(files, &(&1.status == :ok))
+
     per_file =
-      files
+      ok_files
       |> Enum.map(fn f ->
         """
-        [Archivo: #{Path.basename(f.path)}]
-          * Total de entradas: #{f.metrics.total_entries}
-          * Distribución por nivel: #{format_map(f.metrics.by_level)}
-          * Componentes con más errores: #{format_top(f.metrics.top_error_component, "errores")}
-          * Distribución temporal (por hora): #{format_map(f.metrics.by_hour)}
-          * Errores más frecuentes:
+        [File: #{Path.basename(f.path)}]
+          * Total entries: #{f.metrics.total_entries}
+          * Level distribution: #{format_map(f.metrics.by_level)}
+          * Components with most errors: #{format_top(f.metrics.top_error_component, "errors")}
+          * Time distribution (by hour): #{format_map(f.metrics.by_hour)}
+          * Most frequent errors:
         #{format_top_errors(f.metrics.top_error_messages)}
-          * Tiempo entre errores críticos (seg): #{format_gaps(f.metrics.critical_error_gaps_seconds)}
-          * Patrones de error recurrentes:
+          * Time between critical errors (sec): #{format_gaps(f.metrics.critical_error_gaps_seconds)}
+          * Recurring error patterns:
         #{format_patterns(f.metrics.recurrent_error_patterns)}
         """
       end)
       |> Enum.join("\n")
 
+    omitted = format_omitted_files(bad_files)
+
     totals_text =
-      """
-      Totales Consolidados LOG:
-        - Entradas totales: #{totals.total_entries}
-        - Distribución por nivel: #{format_map(totals.by_level)}
-      """
+      cond do
+        ok_files == [] ->
+          "Consolidated LOG totals: N/A (no LOG files with :ok status)\n"
+
+        true ->
+          """
+          Consolidated LOG totals:
+            - Total entries: #{totals.total_entries}
+            - Level distribution: #{format_map(totals.by_level)}
+          """
+      end
 
     """
     --------------------------------------------------------------------------------
-    MÉTRICAS DE ARCHIVOS LOG
+    LOG FILE METRICS
     --------------------------------------------------------------------------------
-    #{if per_file == "", do: "No LOG files processed.\n", else: per_file}
+    #{if per_file == "", do: "No LOG metrics were generated (no files with :ok status).\n", else: per_file}
+    #{omitted}
     #{totals_text}
     """
   end
@@ -184,17 +247,49 @@ defmodule FileProcessor.ReportGenerator do
 
     """
     --------------------------------------------------------------------------------
-    ERRORES Y ADVERTENCIAS
+    ERRORS AND WARNINGS
     --------------------------------------------------------------------------------
-    #{if body == "", do: "Sin errores globales.\n", else: body <> "\n"}
+    #{if body == "", do: "No global errors.\n", else: body <> "\n"}
     """
   end
+
+  # Formats a short list of files omitted from metrics due to non-ok status
+  defp format_omitted_files([]), do: ""
+
+  defp format_omitted_files(files) do
+    items =
+      files
+      |> Enum.map(fn f ->
+        msg = first_error_message(f)
+        "  - #{Path.basename(f.path)} (#{f.status}): #{msg}"
+      end)
+      |> Enum.join("\n")
+
+    """
+    Omitted files (errors were found):
+    #{items}
+    """
+  end
+
+  # Tries to extract a short error message from the file item itself
+  defp first_error_message(%{errors: [first | _]}) when is_map(first) do
+    line = Map.get(first, :line)
+    msg = Map.get(first, :error, inspect(first))
+
+    if is_integer(line) do
+      "line #{line}: #{msg}"
+    else
+      msg
+    end
+  end
+
+  defp first_error_message(_), do: "See the errors section for more details"
 
   # Static footer section
   defp footer do
     """
     ================================================================================
-                               FIN DEL REPORTE
+                               END OF REPORT
     ================================================================================
     """
   end
@@ -204,7 +299,7 @@ defmodule FileProcessor.ReportGenerator do
 
   # Formats a date range
   defp format_range({nil, nil}), do: "N/A"
-  defp format_range({min, max}), do: "#{min} a #{max}"
+  defp format_range({min, max}), do: "#{min} to #{max}"
 
   # Formats a "top" metric with units
   defp format_top(nil, _unit), do: "N/A"
@@ -215,20 +310,20 @@ defmodule FileProcessor.ReportGenerator do
   defp format_top_money(%{name: n, value: v}), do: "#{n} ($#{Float.round(v, 2)})"
 
   # Formats a list of actions
-  defp format_actions([]), do: "    (sin acciones)\n"
+  defp format_actions([]), do: "    (no actions)\n"
 
   defp format_actions(list) do
     list
     |> Enum.with_index(1)
     |> Enum.map(fn {%{action: a, count: c}, idx} ->
-      "    #{idx}. #{a} (#{c} veces)\n"
+      "    #{idx}. #{a} (#{c} times)\n"
     end)
     |> Enum.join()
   end
 
   # Formats peak hour metric
   defp format_peak_hour(nil), do: "N/A"
-  defp format_peak_hour(%{hour: h, sessions: c}), do: "#{h}:00 (#{c} sesiones)"
+  defp format_peak_hour(%{hour: h, sessions: c}), do: "#{h}:00 (#{c} sessions)"
 
   # Formats generic maps (used for levels, hours, etc.)
   defp format_map(map) when map == %{}, do: "N/A"
@@ -241,7 +336,7 @@ defmodule FileProcessor.ReportGenerator do
   end
 
   # Formats top error messages
-  defp format_top_errors([]), do: "    (sin errores críticos)\n"
+  defp format_top_errors([]), do: "    (no critical errors)\n"
 
   defp format_top_errors(list) do
     list
@@ -253,7 +348,7 @@ defmodule FileProcessor.ReportGenerator do
   end
 
   # Formats recurrent error patterns
-  defp format_patterns([]), do: "    (sin errores críticos)\n"
+  defp format_patterns([]), do: "    (no critical errors)\n"
 
   defp format_patterns(list) do
     list
