@@ -197,6 +197,11 @@ defmodule FileProcessor do
     # Output file for parallel benchmark run
     parallel_out = "benchmark_parallel.txt"
 
+    # Silence stdout
+    original = Process.group_leader()
+    {:ok, devnull} = File.open("/dev/null", [:write])
+    Process.group_leader(self(), devnull)
+
     # Measure sequential runtime in microseconds
     {seq_us, seq_result} =
       :timer.tc(fn ->
@@ -220,6 +225,43 @@ defmodule FileProcessor do
       else
         0.0
       end
+
+    # Restore stdout
+    Process.group_leader(self(), original)
+    File.close(devnull)
+
+    # Delete benchmark reports and logs
+    case File.rm("benchmark_parallel.txt") do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        IO.puts("Could not delete benchmark_parallel.txt: #{inspect(reason)}")
+    end
+
+    case File.rm("benchmark_sequential.txt") do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        IO.puts("Could not delete benchmark_sequential.txt: #{inspect(reason)}")
+    end
+
+    case File.rm("logs/benchmark_parallel_errors.log") do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        IO.puts("Could not delete logs/benchmark_parallel_errors.log: #{inspect(reason)}")
+    end
+
+    case File.rm("logs/benchmark_sequential_errors.log") do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        IO.puts("Could not delete logs/benchmark_sequential_errors.log: #{inspect(reason)}")
+    end
 
     # Print comparison block to the console
     IO.puts("""
@@ -249,7 +291,7 @@ defmodule FileProcessor do
   end
 
   # Formats run results for benchmark printing
-  defp format_benchmark_result({:ok, path}), do: "ok (#{path})"
+  defp format_benchmark_result({:ok, _path}), do: "OK"
   defp format_benchmark_result({:error, errors}), do: "error (#{length(errors)} issues)"
   defp format_benchmark_result(other), do: inspect(other)
 
