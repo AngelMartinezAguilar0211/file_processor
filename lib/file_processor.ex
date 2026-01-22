@@ -118,9 +118,15 @@ defmodule FileProcessor do
             log_errors(error_log_path, raw_errors, mode)
             {:error, raw_errors}
           else
-            # Persist only the consolidated report errors (discovery/read/parse/timeout/crash)
-            log_errors(error_log_path, report_data.errors, mode)
-            write_report(out_path, report_data)
+            # If nothing was successfully processed (status :ok), do not write a report
+            if report_data.counts.ok == 0 do
+              log_errors(error_log_path, report_data.errors, mode)
+              no_successful_files_error(report_data)
+            else
+              # Persist only the consolidated report errors (discovery/read/parse/timeout/crash)
+              log_errors(error_log_path, report_data.errors, mode)
+              write_report(out_path, report_data)
+            end
           end
         end
 
@@ -134,8 +140,15 @@ defmodule FileProcessor do
           {:error, read_result.errors}
         else
           report_data = build_report_data(read_result, directory, mode)
-          log_errors(error_log_path, report_data.errors, mode)
-          write_report(out_path, report_data)
+
+          # If nothing was successfully processed (status :ok), do not write a report
+          if report_data.counts.ok == 0 do
+            log_errors(error_log_path, report_data.errors, mode)
+            no_successful_files_error(report_data)
+          else
+            log_errors(error_log_path, report_data.errors, mode)
+            write_report(out_path, report_data)
+          end
         end
 
       invalid_mode ->
@@ -165,6 +178,16 @@ defmodule FileProcessor do
            "The given arguments are incorrect, the arguments must be: 1. a directory/file string path, 2. an output file string path, 3. a mode string indicator (parallel or sequential), and 4. a list of options (:max_workers, :timeout_ms and :retries)"
        }
      ]}
+  end
+
+  # Builds a global error that indicates the run had no successful (:ok) file results.
+  defp no_successful_files_error(report_data) do
+    %{
+      path: "run",
+      reason: :no_successful_files,
+      details:
+        "All files have errors or didn't reach status :ok (total=#{report_data.counts.total}, ok=#{report_data.counts.ok}). Please check the logs for more details."
+    }
   end
 
   # Writes a report using the shared ReportGenerator and returns the absolute path
