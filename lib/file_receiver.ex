@@ -103,15 +103,18 @@ defmodule FileProcessor.FileReceiver do
     end
   end
 
-  # Lists supported files inside a directory
+  # Lists supported files inside a directory (recursive)
   defp list_supported_files_in_dir(dir) do
     dir
     |> File.ls()
     |> case do
-      {:ok, entries} ->
+      {:ok, _entries} ->
+        # Recursively scan all entries under the directory
+        pattern = Path.join([dir, "**", "*"])
+
         files =
-          entries
-          |> Enum.map(&Path.join(dir, &1))
+          pattern
+          |> Path.wildcard()
           |> Enum.filter(&File.regular?/1)
           |> Enum.filter(&supported_file?/1)
 
