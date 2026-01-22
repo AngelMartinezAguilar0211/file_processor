@@ -1461,26 +1461,22 @@ defmodule FileProcessor do
   defp log_errors(nil, _errors, _mode), do: :ok
   defp log_errors(_path, [], _mode), do: :ok
 
-  defp log_errors(path, errors, mode) when is_binary(path) and is_list(errors) do
-    ensure_log_header(path, mode)
+  defp log_errors(path, errors, _mode) when is_binary(path) and is_list(errors) do
+    File.write!(
+      path,
+      "--------------------------------------------------------------------------------\nExecution started at #{utc_timestamp()}\n--------------------------------------------------------------------------------\n",
+      [:append]
+    )
 
     Enum.each(errors, fn e ->
       File.write!(path, format_log_line(e), [:append])
     end)
 
-    :ok
-  end
-
-  # Creates a header only once, the first time the file is written
-  defp ensure_log_header(path, mode) do
-    if not File.exists?(path) do
-      ts = utc_timestamp()
-
-      header =
-        "[#{ts}] mode=#{mode} message=\"error log start\"\n"
-
-      File.write!(path, header)
-    end
+    File.write!(
+      path,
+      "--------------------------------------------------------------------------------\nExecution finished at #{utc_timestamp()}\n--------------------------------------------------------------------------------\n",
+      [:append]
+    )
 
     :ok
   end
