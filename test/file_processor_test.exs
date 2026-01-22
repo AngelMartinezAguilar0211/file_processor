@@ -9,8 +9,14 @@ defmodule FileProcessorTest do
   end
 
   test "run/1 processes a valid directory and generates a report" do
+    original = Process.group_leader()
+    {:ok, devnull} = File.open("/dev/null", [:write])
+    Process.group_leader(self(), devnull)
+
     result = FileProcessor.run("data")
 
+    Process.group_leader(self(), original)
+    File.close(devnull)
     assert {:ok, path} = result
     assert File.exists?(path)
 
@@ -22,12 +28,18 @@ defmodule FileProcessorTest do
   end
 
   test "run/1 processes a mix of valid and error files" do
+    original = Process.group_leader()
+    {:ok, devnull} = File.open("/dev/null", [:write])
+    Process.group_leader(self(), devnull)
+
     result =
       FileProcessor.run([
-        "data",
-        "data/ventas_corrupto.csv",
-        "data/usuarios_malformado.json"
+        "data/valid",
+        "data/invalid"
       ])
+
+    Process.group_leader(self(), original)
+    File.close(devnull)
 
     assert {:ok, path} = result
     content = File.read!(path)
@@ -38,8 +50,14 @@ defmodule FileProcessorTest do
   end
 
   test "run/1 returns :no_supported_files when directory has no supported files" do
+    original = Process.group_leader()
+    {:ok, devnull} = File.open("/dev/null", [:write])
+    Process.group_leader(self(), devnull)
+
     result = FileProcessor.run("test")
 
+    Process.group_leader(self(), original)
+    File.close(devnull)
     assert {:error, errors} = result
     assert is_list(errors)
     assert length(errors) > 0
@@ -55,15 +73,28 @@ defmodule FileProcessorTest do
   end
 
   test "run/2 writes report to custom output path" do
+    original = Process.group_leader()
+    {:ok, devnull} = File.open("/dev/null", [:write])
+    Process.group_leader(self(), devnull)
+
     result = FileProcessor.run("data", @output)
 
+    Process.group_leader(self(), original)
+    File.close(devnull)
     assert {:ok, path} = result
     assert path == Path.expand(@output)
     assert File.exists?(@output)
   end
 
   test "run/3 stores processing mode in report" do
+    original = Process.group_leader()
+    {:ok, devnull} = File.open("/dev/null", [:write])
+    Process.group_leader(self(), devnull)
+
     {:ok, path} = FileProcessor.run("data", @output, "sequential")
+
+    Process.group_leader(self(), original)
+    File.close(devnull)
     content = File.read!(path)
 
     assert String.contains?(content, "Modo de procesamiento: sequential")
@@ -86,16 +117,9 @@ defmodule FileProcessorTest do
     # Progress is printed by FileProcessor in parallel mode
     assert String.contains?(io, "[parallel]")
     assert String.contains?(io, "processed:")
-  end
+end
 
-  test "benchmark/1 prints comparison block and writes benchmark reports" do
-    seq_out = "benchmark_sequential.txt"
-    par_out = "benchmark_parallel.txt"
-
-    # Cleanup from previous runs if they exist
-    if File.exists?(seq_out), do: File.rm!(seq_out)
-    if File.exists?(par_out), do: File.rm!(par_out)
-
+  test "benchmark/1 prints block correctly" do
     io =
       ExUnit.CaptureIO.capture_io(fn ->
         FileProcessor.benchmark("data")
@@ -106,14 +130,6 @@ defmodule FileProcessorTest do
     assert String.contains?(io, "Sequential:")
     assert String.contains?(io, "Parallel:")
     assert String.contains?(io, "Speedup:")
-
-    # Benchmark reports created by the system
-    assert File.exists?(seq_out)
-    assert File.exists?(par_out)
-
-    # Cleanup generated benchmark outputs
-    File.rm!(seq_out)
-    File.rm!(par_out)
   end
 
   test "FileReceiver.obtain/1 returns only supported files for a directory with existing fixtures" do

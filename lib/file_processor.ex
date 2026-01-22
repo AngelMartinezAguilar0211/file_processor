@@ -39,7 +39,7 @@ defmodule FileProcessor do
 
   ## Examples
 
-      iex> {:ok, path} = FileProcessor.run("data")
+      iex> {:ok, path} = FileProcessor.run("data", "reporte_final.txt", "sequential")
       iex> is_binary(path)
       true
 
