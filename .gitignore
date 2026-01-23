@@ -23,7 +23,7 @@ erl_crash.dump
 file_processor-*.tar
 
 # Ignore log files
-/logs/
+/logs/reporte_final_errors.log
 
 # Ignore output file
 /reporte_final.txt
