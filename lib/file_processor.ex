@@ -121,7 +121,7 @@ defmodule FileProcessor do
             # If nothing was successfully processed (status :ok), do not write a report
             if report_data.counts.ok == 0 do
               log_errors(error_log_path, report_data.errors, mode)
-              no_successful_files_error(report_data)
+              {:error, no_successful_files_error(report_data)}
             else
               # Persist only the consolidated report errors (discovery/read/parse/timeout/crash)
               log_errors(error_log_path, report_data.errors, mode)
@@ -144,7 +144,7 @@ defmodule FileProcessor do
           # If nothing was successfully processed (status :ok), do not write a report
           if report_data.counts.ok == 0 do
             log_errors(error_log_path, report_data.errors, mode)
-            no_successful_files_error(report_data)
+            {:error, no_successful_files_error(report_data)}
           else
             log_errors(error_log_path, report_data.errors, mode)
             write_report(out_path, report_data)
@@ -182,12 +182,14 @@ defmodule FileProcessor do
 
   # Builds a global error that indicates the run had no successful (:ok) file results.
   defp no_successful_files_error(report_data) do
-    %{
-      path: "run",
-      reason: :no_successful_files,
-      details:
-        "All files have errors or didn't reach status :ok (total=#{report_data.counts.total}, ok=#{report_data.counts.ok}). Please check the logs for more details."
-    }
+    [
+      %{
+        path: "run",
+        reason: :no_successful_files,
+        details:
+          "All files have errors or didn't reach status :ok (total=#{report_data.counts.total}, ok=#{report_data.counts.ok}). Please check the logs for more details."
+      }
+    ]
   end
 
   # Writes a report using the shared ReportGenerator and returns the absolute path

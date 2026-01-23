@@ -107,7 +107,7 @@ defmodule FileProcessor.CLI do
     end
   end
 
-  # Prints one error item in a human-friendly way.
+  # Prints one error item
   defp print_error(%{path: path, reason: reason, details: details}) do
     IO.puts(" - #{inspect(path)}: #{inspect(reason)} (#{inspect(details)})")
   end
