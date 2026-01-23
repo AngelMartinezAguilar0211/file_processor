@@ -8,56 +8,36 @@ defmodule FileProcessorTest do
     :ok
   end
 
+  # Report generation
   test "run/1 processes a valid directory and generates a report" do
-    original = Process.group_leader()
-    {:ok, devnull} = File.open("/dev/null", [:write])
-    Process.group_leader(self(), devnull)
-
-    result = FileProcessor.run("data")
-
-    Process.group_leader(self(), original)
-    File.close(devnull)
+    result = silent_execution(["data"])
     assert {:ok, path} = result
     assert File.exists?(path)
+  end
 
+  test "run/1 generates a report with the correct format" do
+    result = silent_execution(["data"])
+    assert {:ok, path} = result
     content = File.read!(path)
-    assert String.contains?(content, "REPORTE DE PROCESAMIENTO DE ARCHIVOS")
-    assert String.contains?(content, "MÉTRICAS DE ARCHIVOS CSV")
-    assert String.contains?(content, "MÉTRICAS DE ARCHIVOS JSON")
-    assert String.contains?(content, "MÉTRICAS DE ARCHIVOS LOG")
+    assert String.contains?(content, "FILE PROCESSING REPORT")
+    assert String.contains?(content, "CSV FILE METRICS")
+    assert String.contains?(content, "JSON FILE METRICS")
+    assert String.contains?(content, "LOG FILE METRICS")
+    assert String.contains?(content, "ERRORS AND WARNINGS")
   end
 
   test "run/1 processes a mix of valid and error files" do
-    original = Process.group_leader()
-    {:ok, devnull} = File.open("/dev/null", [:write])
-    Process.group_leader(self(), devnull)
-
-    result =
-      FileProcessor.run([
-        "data/valid",
-        "data/invalid"
-      ])
-
-    Process.group_leader(self(), original)
-    File.close(devnull)
-
+    result = silent_execution(["data"])
     assert {:ok, path} = result
     content = File.read!(path)
 
-    assert String.contains?(content, "ERRORES Y ADVERTENCIAS")
+    assert String.contains?(content, "ERRORS AND WARNINGS")
     assert String.contains?(content, "ventas_corrupto.csv")
     assert String.contains?(content, "usuarios_malformado.json")
   end
 
   test "run/1 returns :no_supported_files when directory has no supported files" do
-    original = Process.group_leader()
-    {:ok, devnull} = File.open("/dev/null", [:write])
-    Process.group_leader(self(), devnull)
-
-    result = FileProcessor.run("test")
-
-    Process.group_leader(self(), original)
-    File.close(devnull)
+    result = silent_execution(["test"])
     assert {:error, errors} = result
     assert is_list(errors)
     assert length(errors) > 0
@@ -73,14 +53,7 @@ defmodule FileProcessorTest do
   end
 
   test "run/2 writes report to custom output path" do
-    original = Process.group_leader()
-    {:ok, devnull} = File.open("/dev/null", [:write])
-    Process.group_leader(self(), devnull)
-
-    result = FileProcessor.run("data", @output)
-
-    Process.group_leader(self(), original)
-    File.close(devnull)
+    result = silent_execution(["data", @output])
     assert {:ok, path} = result
     assert path == Path.expand(@output)
     assert File.exists?(@output)
@@ -97,12 +70,8 @@ defmodule FileProcessorTest do
     File.close(devnull)
     content = File.read!(path)
 
-    assert String.contains?(content, "Modo de procesamiento: sequential")
+    assert String.contains?(content, "Processing mode: sequential")
   end
-
-  # -----------------------------
-  # Delivery 2 tests
-  # -----------------------------
 
   test "run/1 defaults to parallel mode and prints progress lines" do
     io =
@@ -111,14 +80,264 @@ defmodule FileProcessorTest do
         assert File.exists?(path)
 
         content = File.read!(path)
-        assert String.contains?(content, "Modo de procesamiento: parallel")
+        assert String.contains?(content, "Processing mode: parallel")
       end)
 
     # Progress is printed by FileProcessor in parallel mode
     assert String.contains?(io, "[parallel]")
     assert String.contains?(io, "processed:")
-end
+  end
 
+  # Report format and metrics
+  test "The report process all the base files in data" do
+    result = silent_execution(["data"])
+    assert {:ok, data} = result
+    content = File.read!(data)
+    assert String.contains?(content, "Total files processed: 8")
+  end
+
+  test "The execution calculates total sales for CSV" do
+    result = silent_execution(["data/valid/ventas_enero.csv"])
+    assert {:ok, data} = result
+    content = File.read!(data)
+    assert String.contains?(content, "CSV FILE METRICS")
+    assert String.contains?(content, "Total sales: $24399.93")
+  end
+
+  test "The execution calculates unique products for CSV" do
+    result = silent_execution(["data/valid/ventas_enero.csv"])
+    assert {:ok, data} = result
+    content = File.read!(data)
+    assert String.contains?(content, "CSV FILE METRICS")
+    assert String.contains?(content, "Unique products: 15")
+  end
+
+  test "The execution calculates best selling product for CSV" do
+    result = silent_execution(["data/valid/ventas_enero.csv"])
+    assert {:ok, data} = result
+    content = File.read!(data)
+    assert String.contains?(content, "CSV FILE METRICS")
+    assert String.contains?(content, "Best-selling product: Cable HDMI")
+  end
+
+  test "The execution calculates highest revenue category for CSV" do
+    result = silent_execution(["data/valid/ventas_enero.csv"])
+    assert {:ok, data} = result
+    content = File.read!(data)
+    assert String.contains?(content, "CSV FILE METRICS")
+    assert String.contains?(content, "Highest-revenue category: Computadoras")
+  end
+
+  test "The execution calculates Average discount for CSV" do
+    result = silent_execution(["data/valid/ventas_enero.csv"])
+    assert {:ok, data} = result
+    content = File.read!(data)
+    assert String.contains?(content, "CSV FILE METRICS")
+    assert String.contains?(content, "Average discount applied: 12.0%")
+  end
+
+  test "The execution displays CSV period" do
+    result = silent_execution(["data/valid/ventas_enero.csv"])
+    assert {:ok, data} = result
+    content = File.read!(data)
+    assert String.contains?(content, "CSV FILE METRICS")
+    assert String.contains?(content, "Period: 2024-01-02 to 2024-01-30")
+  end
+
+  test "The execution calculates total sales for all CSV files" do
+    result = silent_execution(["data"])
+    assert {:ok, data} = result
+    content = File.read!(data)
+    assert String.contains?(content, "CSV FILE METRICS")
+    assert String.contains?(content, "Total sales: $51121.31")
+  end
+
+  test "The execution calculates total unique products in all CSV files" do
+    result = silent_execution(["data"])
+    assert {:ok, data} = result
+    content = File.read!(data)
+    assert String.contains?(content, "CSV FILE METRICS")
+    assert String.contains?(content, "Total unique products: 31")
+  end
+
+  test "The execution calculates registered users for JSON files" do
+    result = silent_execution(["data/valid/sesiones.json"])
+    assert {:ok, data} = result
+    content = File.read!(data)
+    assert String.contains?(content, "JSON FILE METRICS")
+    assert String.contains?(content, "Registered users: 8")
+  end
+
+  test "The execution calculates active users for JSON files" do
+    result = silent_execution(["data/valid/sesiones.json"])
+    assert {:ok, data} = result
+    content = File.read!(data)
+    assert String.contains?(content, "JSON FILE METRICS")
+    assert String.contains?(content, "Active users: 7")
+  end
+
+  test "The execution calculates inactive users for JSON files" do
+    result = silent_execution(["data/valid/sesiones.json"])
+    assert {:ok, data} = result
+    content = File.read!(data)
+    assert String.contains?(content, "JSON FILE METRICS")
+    assert String.contains?(content, "Inactive users: 1")
+  end
+
+  test "The execution calculates average session duration for JSON files" do
+    result = silent_execution(["data/valid/sesiones.json"])
+    assert {:ok, data} = result
+    content = File.read!(data)
+    assert String.contains?(content, "JSON FILE METRICS")
+    assert String.contains?(content, "Average session duration: 30.0 minutes")
+  end
+
+  test "The execution calculates total pages visited for JSON files" do
+    result = silent_execution(["data/valid/sesiones.json"])
+    assert {:ok, data} = result
+    content = File.read!(data)
+    assert String.contains?(content, "JSON FILE METRICS")
+    assert String.contains?(content, "Total pages visited: 285")
+  end
+
+  test "The execution displays top actions for JSON files" do
+    result = silent_execution(["data/valid/sesiones.json"])
+    assert {:ok, data} = result
+    content = File.read!(data)
+    assert String.contains?(content, "JSON FILE METRICS")
+    assert String.contains?(content, "Top actions:")
+    assert String.contains?(content, "1. login (12 times)")
+    assert String.contains?(content, "2. logout (12 times)")
+  end
+
+  test "The execution displays peak activity hour for JSON files" do
+    result = silent_execution(["data/valid/sesiones.json"])
+    assert {:ok, data} = result
+    content = File.read!(data)
+    assert String.contains?(content, "JSON FILE METRICS")
+    assert String.contains?(content, "Peak activity hour: 8:00 (2 sessions)")
+  end
+
+  test "The report excludes JSON files with errors" do
+    result = silent_execution(["data"])
+    assert {:ok, data} = result
+    content = File.read!(data)
+    assert String.contains?(content, "Omitted files (errors were found):")
+    assert String.contains?(content, "- usuarios_malformado.json (failed)")
+  end
+
+  test "The report calculates total users for all JSON files" do
+    result = silent_execution(["data"])
+    assert {:ok, data} = result
+    content = File.read!(data)
+    assert String.contains?(content, "JSON FILE METRICS")
+    assert String.contains?(content, "Total users (sum): 18")
+  end
+
+  test "The report indicates total active users for JSON files" do
+    result = silent_execution(["data"])
+    assert {:ok, data} = result
+    content = File.read!(data)
+    assert String.contains?(content, "JSON FILE METRICS")
+    assert String.contains?(content, "Active (sum): 14")
+  end
+
+  test "The report indicates total active users for all JSON files" do
+    result = silent_execution(["data"])
+    assert {:ok, data} = result
+    content = File.read!(data)
+    assert String.contains?(content, "JSON FILE METRICS")
+    assert String.contains?(content, "Inactive (sum): 4")
+  end
+
+  test "The execution calculates total entries for log files" do
+    result = silent_execution(["data/valid/aplicacion.log"])
+    assert {:ok, data} = result
+    content = File.read!(data)
+    assert String.contains?(content, "LOG FILE METRICS")
+    assert String.contains?(content, "Total entries: 71")
+  end
+
+  test "The execution calculates levels distribution for log files" do
+    result = silent_execution(["data/valid/aplicacion.log"])
+    assert {:ok, data} = result
+    content = File.read!(data)
+    assert String.contains?(content, "LOG FILE METRICS")
+    assert String.contains?(content, "Level distribution: DEBUG=10, ERROR=8, INFO=47, WARN=6")
+  end
+
+  test "The execution calculates components with most errors for log files" do
+    result = silent_execution(["data/valid/aplicacion.log"])
+    assert {:ok, data} = result
+    content = File.read!(data)
+    assert String.contains?(content, "LOG FILE METRICS")
+    assert String.contains?(content, "Components with most errors: Integration (2 errors)")
+  end
+
+  test "The execution calculates time distribution for log files" do
+    result = silent_execution(["data/valid/aplicacion.log"])
+    assert {:ok, data} = result
+    content = File.read!(data)
+    assert String.contains?(content, "LOG FILE METRICS")
+
+    assert String.contains?(
+             content,
+             "Time distribution (by hour): 8=11, 9=8, 10=9, 11=6, 12=6, 13=4, 14=6, 15=7"
+           )
+  end
+
+  test "The execution displays most frequent errors for log files" do
+    result = silent_execution(["data/valid/aplicacion.log"])
+    assert {:ok, data} = result
+    content = File.read!(data)
+    assert String.contains?(content, "LOG FILE METRICS")
+    assert String.contains?(content, "Most frequent errors:")
+    assert String.contains?(content, "1. API externa retornó código 503 (1)")
+    assert String.contains?(content, "2. Constraint violation: stock no puede ser negativo (1)")
+  end
+
+  test "The calculates time between critical errors for log files" do
+    result = silent_execution(["data/valid/aplicacion.log"])
+    assert {:ok, data} = result
+    content = File.read!(data)
+    assert String.contains?(content, "LOG FILE METRICS")
+
+    assert String.contains?(
+             content,
+             "Time between critical errors (sec): avg=3465.14, min=1, max=10754, n=7"
+           )
+  end
+
+  test "The report calculates recurring error patterns for log files" do
+    result = silent_execution(["data/valid/aplicacion.log"])
+    assert {:ok, data} = result
+    content = File.read!(data)
+    assert String.contains?(content, "LOG FILE METRICS")
+    assert String.contains?(content, "Recurring error patterns:")
+    assert String.contains?(content, "1. API externa retornó código <num> (1)")
+  end
+
+  test "The execution calculates total entries for all the log files" do
+    result = silent_execution(["data"])
+    assert {:ok, data} = result
+    content = File.read!(data)
+    assert String.contains?(content, "LOG FILE METRICS")
+    assert String.contains?(content, "Total entries: 143")
+  end
+
+  test "The execution calculates level distribution for all the log files" do
+    result = silent_execution(["data"])
+    assert {:ok, data} = result
+    content = File.read!(data)
+    assert String.contains?(content, "LOG FILE METRICS")
+
+    assert String.contains?(
+             content,
+             "Level distribution: DEBUG=16, ERROR=17, FATAL=1, INFO=96, WARN=13"
+           )
+  end
+
+  # Benchmark tests
   test "benchmark/1 prints block correctly" do
     io =
       ExUnit.CaptureIO.capture_io(fn ->
@@ -132,6 +351,7 @@ end
     assert String.contains?(io, "Speedup:")
   end
 
+  # Inner functions tests
   test "FileReceiver.obtain/1 returns only supported files for a directory with existing fixtures" do
     dir = existing_fixtures_dir!()
 
@@ -194,6 +414,94 @@ end
            end)
   end
 
+  # Execution errors
+
+  test "Error :argument_malformed" do
+    response = silent_execution("data", ["reporte_final.txt"], "parallel")
+
+    assert response ==
+             {:error,
+              [
+                %{
+                  reason: :argument_malformed,
+                  path: "",
+                  details:
+                    "The given arguments are incorrect, the arguments must be: 1. a directory/file string path, 2. an output file string path, 3. a mode string indicator (parallel or sequential), and 4. a list of options (:max_workers, :timeout_ms and :retries)"
+                }
+              ]}
+  end
+
+  test "Error :directory_not_found" do
+    response = silent_execution("data/invald")
+
+    assert response ==
+             {:error,
+              [
+                %{
+                  reason: :directory_not_found,
+                  path: "data/invald",
+                  details: "The given path is not a directory or does not exist."
+                }
+              ]}
+  end
+
+  test "Error :no_successful_files" do
+    response = silent_execution("data/invalid")
+
+    assert response ==
+             {:error,
+              [
+                %{
+                  reason: :no_successful_files,
+                  path: "run",
+                  details:
+                    "All files have errors or didn't reach status :ok (total=2, ok=0). Please check the logs for more details."
+                }
+              ]}
+  end
+
+  test "Error :no_supported_files" do
+    response = silent_execution("test")
+
+    assert response ==
+             {:error,
+              [
+                %{
+                  reason: :no_supported_files,
+                  path: "test",
+                  details: "Directory contains no supported files."
+                }
+              ]}
+  end
+
+  test "Error :unsupported_format" do
+    response = silent_execution("mix.exs")
+
+    assert response ==
+             {:error,
+              [
+                %{
+                  path: "mix.exs",
+                  reason: :unsupported_format,
+                  details: "The .exs extension is not supported."
+                }
+              ]}
+  end
+
+  test "Error :file_not_found" do
+    response = silent_execution("mix.txt")
+
+    assert response ==
+             {:error,
+              [
+                %{
+                  reason: :file_not_found,
+                  path: "mix.txt",
+                  details: "The given path is not a file or does not exist."
+                }
+              ]}
+  end
+
   # -----------------------------
   # Helpers
   # -----------------------------
@@ -210,5 +518,19 @@ end
   defp existing_fixtures_dir! do
     existing_supported_file!()
     |> Path.dirname()
+  end
+
+  defp silent_execution(path), do: silent_execution(path, "reporte_final.txt", "sequential")
+
+  defp silent_execution(path, output, mode) do
+    original = Process.group_leader()
+    {:ok, devnull} = File.open("/dev/null", [:write])
+    Process.group_leader(self(), devnull)
+
+    result = FileProcessor.run(path, output, mode)
+
+    Process.group_leader(self(), original)
+    File.close(devnull)
+    result
   end
 end

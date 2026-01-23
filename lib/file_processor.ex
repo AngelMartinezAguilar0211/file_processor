@@ -50,8 +50,9 @@ defmodule FileProcessor do
 
   def run(_input), do: run(0, 0, 0, 0)
 
-  def run(input, out_path) when is_bitstring(out_path) and is_bitstring(input),
-    do: run(input, out_path, "parallel", [])
+  def run(input, out_path)
+      when is_bitstring(out_path) and (is_bitstring(input) or is_list(input)),
+      do: run(input, out_path, "parallel", [])
 
   def run(_input, _out_path), do: run(0, 0, 0, 0)
 
@@ -64,7 +65,8 @@ defmodule FileProcessor do
   """
   # Backwards-compatible arity that uses default parallel options
   def run(input, out_path, mode)
-      when mode in ["parallel", "sequential"] and is_bitstring(out_path) and is_bitstring(input),
+      when mode in ["parallel", "sequential"] and is_bitstring(out_path) and
+             (is_bitstring(input) or is_list(input)),
       do: run(input, out_path, mode, [])
 
   def run(_input, _out_path, _mode), do: run(0, 0, 0, 0)

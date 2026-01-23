@@ -80,7 +80,12 @@ defmodule FileProcessor.FileReceiver do
         if ext in @supported_exts do
           {:ok, [input]}
         else
-          {:error, %{input: input, reason: :unsupported_format, details: ext}}
+          {:error,
+           %{
+             input: input,
+             reason: :unsupported_format,
+             details: "The #{ext} extension is not supported."
+           }}
         end
 
       # Case: invalid path
