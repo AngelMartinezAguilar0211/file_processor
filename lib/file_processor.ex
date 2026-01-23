@@ -1458,6 +1458,12 @@ defmodule FileProcessor do
 
   # Derives a stable default log file name from the report output path
   defp default_error_log_path(out_path) do
+    # Creates a single directory (fails if parent dirs don't exist)
+    case File.mkdir("logs") do
+      :ok -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+
     Path.rootname("logs/#{out_path}") <> "_errors.log"
   end
 
