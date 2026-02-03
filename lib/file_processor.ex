@@ -24,7 +24,10 @@ defmodule FileProcessor do
           bytes: non_neg_integer(),
           content: binary()
         }
-
+  #
+  # ------------------------------------------------------ MAIN PROCESS SECTION (RUN) ------------------------------------------------------
+  # This section contains run function and its implementations to catch errors and parameters.
+  #
   @doc """
   Runs the file processor.
 
@@ -57,7 +60,7 @@ defmodule FileProcessor do
   def run(_input, _out_path), do: run(0, 0, 0, 0)
 
   @doc """
-  Runs the file processor with a specific mode.
+  Runs the file processor with a specific mode. Needs to be called with a custom output path.
 
   Modes:
   - "parallel"   -> parallel processing
@@ -182,213 +185,6 @@ defmodule FileProcessor do
      ]}
   end
 
-  # Builds a global error that indicates the run had no successful (:ok) file results.
-  defp no_successful_files_error(report_data) do
-    [
-      %{
-        path: "run",
-        reason: :no_successful_files,
-        details:
-          "All files have errors or didn't reach status :ok (total=#{report_data.counts.total}, ok=#{report_data.counts.ok}). Please check the logs for more details."
-      }
-    ]
-  end
-
-  # Writes a report using the shared ReportGenerator and returns the absolute path
-  defp write_report(out_path, report_data) do
-    # Build the report content (same generator used by both modes)
-    content = FileProcessor.ReportGenerator.build(report_data)
-
-    # Write the report to disk and return its absolute path
-    final_path = FileProcessor.ReportGenerator.write!(out_path, content)
-
-    # Success tuple with report path
-    {:ok, final_path}
-  end
-
-  @doc """
-  Benchmark function.
-
-  It runs both pipelines independently:
-  - sequential run
-  - parallel run
-
-  Then prints a comparison to the console.
-  """
-  def benchmark(input), do: benchmark(input, [])
-
-  def benchmark(input, options) when is_list(options) do
-    # Output file for sequential benchmark run
-    sequential_out = "benchmark_sequential.txt"
-
-    # Output file for parallel benchmark run
-    parallel_out = "benchmark_parallel.txt"
-
-    # Silence stdout
-    original = Process.group_leader()
-    {:ok, devnull} = File.open("/dev/null", [:write])
-    Process.group_leader(self(), devnull)
-
-    # Measure sequential runtime in microseconds
-    {seq_us, seq_result} =
-      :timer.tc(fn ->
-        run(input, sequential_out, "sequential")
-      end)
-
-    # Measure parallel runtime in microseconds
-    {par_us, par_result} =
-      :timer.tc(fn ->
-        run(input, parallel_out, "parallel", options)
-      end)
-
-    # Convert microseconds to seconds
-    seq_s = seq_us / 1_000_000.0
-    par_s = par_us / 1_000_000.0
-
-    # Compute speedup factor
-    speedup =
-      if par_s > 0.0 do
-        seq_s / par_s
-      else
-        0.0
-      end
-
-    # Restore stdout
-    Process.group_leader(self(), original)
-    File.close(devnull)
-
-    # Delete benchmark reports and logs
-    case File.rm("benchmark_parallel.txt") do
-      :ok -> :ok
-      {:error, reason} -> IO.puts("Could not delete benchmark_parallel.txt: #{inspect(reason)}")
-    end
-
-    case File.rm("benchmark_sequential.txt") do
-      :ok -> :ok
-      {:error, reason} -> IO.puts("Could not delete benchmark_sequential.txt: #{inspect(reason)}")
-    end
-
-    case File.rm("logs/benchmark_parallel_errors.log") do
-      :ok ->
-        :ok
-
-      {:error, reason} ->
-        IO.puts("Could not delete logs/benchmark_parallel_errors.log: #{inspect(reason)}")
-    end
-
-    case File.rm("logs/benchmark_sequential_errors.log") do
-      :ok ->
-        :ok
-
-      {:error, reason} ->
-        IO.puts("Could not delete logs/benchmark_sequential_errors.log: #{inspect(reason)}")
-    end
-
-    # Print comparison block to the console
-    IO.puts("""
-    BENCHMARK RESULTS
-    Sequential:
-      - Time (s): #{Float.round(seq_s, 6)}
-      - Result: #{format_benchmark_result(seq_result)}
-
-    Parallel:
-      - Time (s): #{Float.round(par_s, 6)}
-      - Result: #{format_benchmark_result(par_result)}
-
-    Speedup: #{Float.round(speedup, 3)}x
-    """)
-  end
-
-  def benchmark(_input, _options) do
-    {:error,
-     [
-       %{
-         path: "",
-         reason: :argument_malformed,
-         details:
-           "The given arguments are incorrect, the arguments must be: A directory/file string path and a list of options (:max_workers, :timeout_ms and :retries)"
-       }
-     ]}
-  end
-
-  # Formats run results for benchmark printing
-  defp format_benchmark_result({:ok, _path}), do: "OK"
-  defp format_benchmark_result({:error, errors}), do: "error (#{length(errors)} issues)"
-  defp format_benchmark_result(other), do: inspect(other)
-
-  # Discovers files with FileReceiver
-  @spec discover_files(String.t() | [String.t()]) ::
-          {:ok, [String.t()], [map()]}
-  defp discover_files(inputs) do
-    # Delegate discovery and validation to FileReceiver
-    FileProcessor.FileReceiver.obtain(inputs)
-  end
-
-  # Discovers supported file paths and aggregates discovery errors without reading contents
-  @spec discover_only(String.t() | [String.t()]) ::
-          {:ok, %{paths: [String.t()], errors: [read_error()], discovered: non_neg_integer()}}
-  defp discover_only(inputs) do
-    {:ok, paths, discovery_errors} = discover_files(inputs)
-
-    # Normalize discovery errors into the same shape used by read/1
-    all_errors =
-      discovery_errors
-      |> Enum.map(fn e -> %{path: e.input, reason: e.reason, details: e.details} end)
-
-    {:ok, %{paths: paths, errors: all_errors, discovered: length(paths)}}
-  end
-
-  # Reads file contents and aggregates errors
-  @spec read(String.t() | [String.t()]) ::
-          {:ok, %{files: [read_result()], errors: [read_error()], discovered: non_neg_integer()}}
-  defp read(inputs) do
-    {:ok, paths, discovery_errors} = discover_files(inputs)
-
-    # Read each discovered path and split between ok and error results
-    {ok_results, read_errors} =
-      paths
-      |> Enum.map(&read_one/1)
-      |> Enum.split_with(fn
-        # Keep successful reads on the left
-        {:ok, _} -> true
-        # Keep failed reads on the right
-        {:error, _} -> false
-      end)
-
-    # Extract only the read_result maps from ok tuples
-    files = Enum.map(ok_results, fn {:ok, result} -> result end)
-
-    # Extract only the error maps from error tuples
-    errors = Enum.map(read_errors, fn {:error, err} -> err end)
-
-    # Merge discovery errors into the same shape as read errors
-    all_errors =
-      discovery_errors
-      |> Enum.map(fn e -> %{path: e.input, reason: e.reason, details: e.details} end)
-      |> Kernel.++(errors)
-
-    {:ok, %{files: files, errors: all_errors, discovered: length(paths)}}
-  end
-
-  # Reads a single file
-  defp read_one(path) do
-    case File.read(path) do
-      {:ok, content} ->
-        {:ok,
-         %{
-           path: path,
-           ext: Path.extname(path),
-           bytes: byte_size(content),
-           content: content
-         }}
-
-      {:error, reason} ->
-        # Convert file read error into a error object
-        {:error, %{path: path, reason: :read_failed, details: reason}}
-    end
-  end
-
-  # Builds report data from read results (sequential pipeline)
   defp build_report_data(read_result, directory, mode) do
     # Capture start time
     start_us = System.monotonic_time(:microsecond)
@@ -468,11 +264,6 @@ defmodule FileProcessor do
     }
   end
 
-  # Builds report data from discovered paths (parallel pipeline).
-  # Returns:
-  # - report_data map
-  # - report_written_count (how many files were readable)
-  # - raw_errors (discovery + read failures) in the same shape returned by read/1 errors
   defp build_report_data_parallel(read_result, directory, mode, opts, error_log_path) do
     # Capture start time
     start_us = System.monotonic_time(:microsecond)
@@ -579,46 +370,213 @@ defmodule FileProcessor do
     {report_data, read_ok_count, read_result.errors ++ read_errors_raw}
   end
 
-  # Resolves parallel execution options with safe defaults that preserve previous behavior
-  defp normalize_parallel_opts(opts, total_jobs) do
-    max_workers_raw = Keyword.get(opts, :max_workers, :infinity)
+  #
+  # ------------------------------------------------------ MAIN PROCESS SECTION (BENCHMARK) ------------------------------------------------------
+  # This section contains benchmark function and its implementations to catch errors and parameters.
+  #
+  @doc """
+  Benchmark function.
 
-    max_workers =
-      cond do
-        max_workers_raw == :infinity ->
-          total_jobs
+  It runs both pipelines independently:
+  - sequential run
+  - parallel run
 
-        is_integer(max_workers_raw) and max_workers_raw > 0 ->
-          min(max_workers_raw, total_jobs)
+  Then prints a comparison to the console.
+  """
+  def benchmark(input), do: benchmark(input, [])
 
-        true ->
-          total_jobs
+  def benchmark(input, options) when is_list(options) do
+    # Output file for sequential benchmark run
+    sequential_out = "benchmark_sequential.txt"
+
+    # Output file for parallel benchmark run
+    parallel_out = "benchmark_parallel.txt"
+
+    # Silence stdout
+    original = Process.group_leader()
+    {:ok, devnull} = File.open("/dev/null", [:write])
+    Process.group_leader(self(), devnull)
+
+    # Measure sequential runtime in microseconds
+    {seq_us, seq_result} =
+      :timer.tc(fn ->
+        run(input, sequential_out, "sequential")
+      end)
+
+    # Measure parallel runtime in microseconds
+    {par_us, par_result} =
+      :timer.tc(fn ->
+        run(input, parallel_out, "parallel", options)
+      end)
+
+    # Convert microseconds to seconds
+    seq_s = seq_us / 1_000_000.0
+    par_s = par_us / 1_000_000.0
+
+    # Compute speedup factor
+    speedup =
+      if par_s > 0.0 do
+        seq_s / par_s
+      else
+        0.0
       end
 
-    timeout_raw = Keyword.get(opts, :timeout_ms, :infinity)
+    # Restore stdout
+    Process.group_leader(self(), original)
+    File.close(devnull)
 
-    timeout_ms =
-      cond do
-        timeout_raw == :infinity ->
-          :infinity
+    # Delete benchmark reports and logs
+    case File.rm("benchmark_parallel.txt") do
+      :ok -> :ok
+      {:error, reason} -> IO.puts("Could not delete benchmark_parallel.txt: #{inspect(reason)}")
+    end
 
-        is_integer(timeout_raw) and timeout_raw > 0 ->
-          timeout_raw
+    case File.rm("benchmark_sequential.txt") do
+      :ok -> :ok
+      {:error, reason} -> IO.puts("Could not delete benchmark_sequential.txt: #{inspect(reason)}")
+    end
 
-        true ->
-          :infinity
-      end
+    case File.rm("logs/benchmark_parallel_errors.log") do
+      :ok ->
+        :ok
 
-    retries_raw = Keyword.get(opts, :retries, 0)
+      {:error, reason} ->
+        IO.puts("Could not delete logs/benchmark_parallel_errors.log: #{inspect(reason)}")
+    end
 
-    retries =
-      cond do
-        is_integer(retries_raw) and retries_raw >= 0 -> retries_raw
-        true -> 0
-      end
+    case File.rm("logs/benchmark_sequential_errors.log") do
+      :ok ->
+        :ok
 
-    {max_workers, timeout_ms, retries}
+      {:error, reason} ->
+        IO.puts("Could not delete logs/benchmark_sequential_errors.log: #{inspect(reason)}")
+    end
+
+    # Print comparison block to the console
+    IO.puts("""
+    BENCHMARK RESULTS
+    Sequential:
+      - Time (s): #{Float.round(seq_s, 6)}
+      - Result: #{format_benchmark_result(seq_result)}
+
+    Parallel:
+      - Time (s): #{Float.round(par_s, 6)}
+      - Result: #{format_benchmark_result(par_result)}
+
+    Speedup: #{Float.round(speedup, 3)}x
+    """)
   end
+
+  # Special function to catch bad arguments given to the benchmark functions
+  def benchmark(_input, _options) do
+    {:error,
+     [
+       %{
+         path: "",
+         reason: :argument_malformed,
+         details:
+           "The given arguments are incorrect, the arguments must be: A directory/file string path and a list of options (:max_workers, :timeout_ms and :retries)"
+       }
+     ]}
+  end
+
+  # Formats run results for benchmark printing
+  defp format_benchmark_result({:ok, _path}), do: "OK"
+  defp format_benchmark_result({:error, errors}), do: "error (#{length(errors)} issues)"
+  defp format_benchmark_result(other), do: inspect(other)
+  #
+  # ------------------------------------------------------ SEQUENTIAL/PARALLEL FUNCTIONS ------------------------------------------------------
+  # In this section we define the functions write_report, discover_files and read that are used by both modes to don´t need to repeat code.
+  #
+
+  # Writes a report using the shared ReportGenerator and returns the absolute path
+  defp write_report(out_path, report_data) do
+    # Build the report content (same generator used by both modes)
+    content = FileProcessor.ReportGenerator.build(report_data)
+
+    # Write the report to disk and return its absolute path
+    final_path = FileProcessor.ReportGenerator.write!(out_path, content)
+
+    # Success tuple with report path
+    {:ok, final_path}
+  end
+
+  # Discovers files delegating the process to FileReceiver files
+  @spec discover_files(String.t() | [String.t()]) ::
+          {:ok, [String.t()], [map()]}
+  defp discover_files(inputs) do
+    # Delegate discovery and validation to FileReceiver
+    FileProcessor.FileReceiver.obtain(inputs)
+  end
+
+  # Discovers supported file paths and aggregates discovery errors without reading contents
+  @spec discover_only(String.t() | [String.t()]) ::
+          {:ok, %{paths: [String.t()], errors: [read_error()], discovered: non_neg_integer()}}
+  defp discover_only(inputs) do
+    {:ok, paths, discovery_errors} = discover_files(inputs)
+
+    # Normalize discovery errors into the same shape used by read/1
+    all_errors =
+      discovery_errors
+      |> Enum.map(fn e -> %{path: e.input, reason: e.reason, details: e.details} end)
+
+    {:ok, %{paths: paths, errors: all_errors, discovered: length(paths)}}
+  end
+
+  # Reads file contents and aggregates errors
+  @spec read(String.t() | [String.t()]) ::
+          {:ok, %{files: [read_result()], errors: [read_error()], discovered: non_neg_integer()}}
+  defp read(inputs) do
+    {:ok, paths, discovery_errors} = discover_files(inputs)
+
+    # Read each discovered path and split between ok and error results
+    {ok_results, read_errors} =
+      paths
+      |> Enum.map(&read_one/1)
+      |> Enum.split_with(fn
+        # Keep successful reads on the left
+        {:ok, _} -> true
+        # Keep failed reads on the right
+        {:error, _} -> false
+      end)
+
+    # Extract only the read_result maps from ok tuples
+    files = Enum.map(ok_results, fn {:ok, result} -> result end)
+
+    # Extract only the error maps from error tuples
+    errors = Enum.map(read_errors, fn {:error, err} -> err end)
+
+    # Merge discovery errors into the same shape as read errors
+    all_errors =
+      discovery_errors
+      |> Enum.map(fn e -> %{path: e.input, reason: e.reason, details: e.details} end)
+      |> Kernel.++(errors)
+
+    {:ok, %{files: files, errors: all_errors, discovered: length(paths)}}
+  end
+
+  # Reads a single file, used by sequential mode with one single file and parallel mode with every process.
+  defp read_one(path) do
+    case File.read(path) do
+      {:ok, content} ->
+        {:ok,
+         %{
+           path: path,
+           ext: Path.extname(path),
+           bytes: byte_size(content),
+           content: content
+         }}
+
+      {:error, reason} ->
+        # Convert file read error into a error object
+        {:error, %{path: path, reason: :read_failed, details: reason}}
+    end
+  end
+
+  #
+  # ------------------------------------------------------ WORKERS FUNCTIONS ------------------------------------------------------
+  # In this section we define the functions where workers are started and managed.
+  #
 
   # Starts as many workers as possible up to max_workers and returns the remaining queue and pid map
   defp start_parallel_workers(queue, pid_map, parent, max_workers, timeout_ms) do
@@ -657,7 +615,7 @@ defmodule FileProcessor do
     end
   end
 
-  # Spawns a worker for a given job and (optionally) schedules a timeout message
+  # Spawns a worker for a given job and schedules a timeout message
   defp spawn_worker_for_job(job, parent, timeout_ms) do
     pid =
       spawn(fn ->
@@ -665,7 +623,20 @@ defmodule FileProcessor do
         case read_one(job.path) do
           {:ok, file} ->
             # Process the file using existing parsing/metrics logic
-            result = process_file_for_parallel(file)
+            result =
+              case file.ext do
+                ".csv" ->
+                  {item, errs} = process_csv(file)
+                  {:ok, :csv, item, errs}
+
+                ".json" ->
+                  {item, errs} = process_json(file)
+                  {:ok, :json, item, errs}
+
+                ".log" ->
+                  {item, errs} = process_log(file)
+                  {:ok, :log, item, errs}
+              end
 
             # Send back the result using pid for identification and idx for stable ordering
             send(parent, {:worker_result, self(), job.idx, file.path, result})
@@ -702,52 +673,6 @@ defmodule FileProcessor do
     :ok
   end
 
-  # Converts internal read errors into printable report errors
-  defp normalize_read_error(%{path: path, reason: reason, details: details}) do
-    %{path: path, error: "#{reason}: #{inspect(details)}"}
-  end
-
-  # Normalizes per-file partial errors (row/line errors) into report/log errors.
-  defp partial_errors_from_item(%{status: :partial, path: path, errors: errs})
-       when is_binary(path) and is_list(errs) do
-    Enum.map(errs, fn e ->
-      line = Map.get(e, :line)
-      msg = Map.get(e, :error, inspect(e))
-
-      text =
-        cond do
-          is_integer(line) -> "partial: line #{line}: #{msg}"
-          true -> "partial: #{msg}"
-        end
-
-      %{path: path, error: text}
-    end)
-  end
-
-  defp partial_errors_from_item(_), do: []
-
-  # Process a file inside a parallel worker using existing code paths
-  defp process_file_for_parallel(file) do
-    case file.ext do
-      ".csv" ->
-        {item, errs} = process_csv(file)
-        {:ok, :csv, item, errs}
-
-      ".json" ->
-        {item, errs} = process_json(file)
-        {:ok, :json, item, errs}
-
-      ".log" ->
-        {item, errs} = process_log(file)
-        {:ok, :log, item, errs}
-    end
-  end
-
-  # Logs a structured event line into the error log file (if enabled).
-  defp log_event(error_log_path, mode, path, reason, details) do
-    log_errors(error_log_path, [%{path: path, reason: reason, details: details}], mode)
-  end
-
   # Collect results from workers while enforcing max_workers, timeout and retries
   defp collect_parallel_results(
          queue,
@@ -772,6 +697,7 @@ defmodule FileProcessor do
      read_ok_count, Enum.reverse(read_err_acc)}
   end
 
+  # Loop function to collect results from workers
   defp collect_parallel_results(
          queue,
          pid_map,
@@ -1207,10 +1133,48 @@ defmodule FileProcessor do
     end
   end
 
-  # Prints a single progress line for parallel processing
-  defp print_parallel_progress(done, total, path, status) do
-    filename = Path.basename(path)
-    IO.puts("[parallel] #{done}/#{total} processed: #{filename} (#{status})")
+  #
+  # ------------------------------------------------------ ERRORS/LOGS FUNCTIONS ------------------------------------------------------
+  # In this section we define the functions that give format to errors for the reports
+  #
+  defp no_successful_files_error(report_data) do
+    [
+      %{
+        path: "run",
+        reason: :no_successful_files,
+        details:
+          "All files have errors or didn't reach status :ok (total=#{report_data.counts.total}, ok=#{report_data.counts.ok}). Please check the logs for more details."
+      }
+    ]
+  end
+
+  # Converts internal read errors into printable report errors
+  defp normalize_read_error(%{path: path, reason: reason, details: details}) do
+    %{path: path, error: "#{reason}: #{inspect(details)}"}
+  end
+
+  # Normalizes per-file partial errors (row/line errors) into report/log errors.
+  defp partial_errors_from_item(%{status: :partial, path: path, errors: errs})
+       when is_binary(path) and is_list(errs) do
+    Enum.map(errs, fn e ->
+      line = Map.get(e, :line)
+      msg = Map.get(e, :error, inspect(e))
+
+      text =
+        cond do
+          is_integer(line) -> "partial: line #{line}: #{msg}"
+          true -> "partial: #{msg}"
+        end
+
+      %{path: path, error: text}
+    end)
+  end
+
+  defp partial_errors_from_item(_), do: []
+
+  # Logs a structured event line into the error log file (if enabled).
+  defp log_event(error_log_path, mode, path, reason, details) do
+    log_errors(error_log_path, [%{path: path, reason: reason, details: details}], mode)
   end
 
   # Builds a report-compatible "failed file item" when a worker crashes or a file is unsupported
@@ -1255,194 +1219,6 @@ defmodule FileProcessor do
       end
 
     {type, item}
-  end
-
-  # Uses CSVParser to process CSV files
-  defp process_csv(file) do
-    case FileProcessor.Parsers.CSVParser.parse(file.content) do
-      {:ok, %{rows: rows, errors: row_errors}} ->
-        metrics = FileProcessor.Metrics.CSVMetrics.compute(rows)
-
-        products_set =
-          rows
-          |> Enum.map(& &1.product)
-          |> MapSet.new()
-
-        status =
-          cond do
-            length(rows) == 0 and length(row_errors) > 0 -> :failed
-            length(row_errors) > 0 -> :partial
-            true -> :ok
-          end
-
-        {%{
-           path: file.path,
-           bytes: file.bytes,
-           status: status,
-           metrics: metrics,
-           products_set: products_set,
-           errors: row_errors
-         }, []}
-
-      {:error, reason} ->
-        {%{
-           path: file.path,
-           bytes: file.bytes,
-           status: :failed,
-           metrics: empty_csv_metrics(),
-           products_set: MapSet.new(),
-           errors: []
-         }, [%{path: file.path, error: reason}]}
-    end
-  end
-
-  # Uses JSONParser to process JSON files
-  defp process_json(file) do
-    case FileProcessor.Parsers.JSONParser.parse(file.content) do
-      {:ok, json} ->
-        metrics = FileProcessor.Metrics.JSONMetrics.compute(json)
-        {%{path: file.path, bytes: file.bytes, status: :ok, metrics: metrics, errors: []}, []}
-
-      {:error, reason} ->
-        {%{
-           path: file.path,
-           bytes: file.bytes,
-           status: :failed,
-           metrics: empty_json_metrics(),
-           errors: []
-         }, [%{path: file.path, error: reason}]}
-    end
-  end
-
-  # Uses LogParser to process log files
-  defp process_log(file) do
-    case FileProcessor.Parsers.LogParser.parse(file.content) do
-      {:ok, %{entries: entries, errors: parse_errors}} ->
-        metrics = FileProcessor.Metrics.LogMetrics.compute(entries)
-
-        status =
-          cond do
-            length(entries) == 0 and length(parse_errors) > 0 -> :failed
-            length(parse_errors) > 0 -> :partial
-            true -> :ok
-          end
-
-        {%{
-           path: file.path,
-           bytes: file.bytes,
-           status: status,
-           metrics: metrics,
-           errors: parse_errors
-         }, []}
-
-      {:error, reason} ->
-        {%{
-           path: file.path,
-           bytes: file.bytes,
-           status: :failed,
-           metrics: empty_log_metrics(),
-           errors: []
-         }, [%{path: file.path, error: reason}]}
-    end
-  end
-
-  # Calculates total sales and unique products from a list of CSV files.
-  # Only status == :ok files are included to avoid partial/failed data.
-  defp consolidate_csv(files) do
-    ok_files = Enum.filter(files, &(&1.status == :ok))
-
-    total_sales =
-      Enum.reduce(ok_files, 0.0, fn f, acc ->
-        acc + f.metrics.total_sales
-      end)
-
-    products_union =
-      Enum.reduce(ok_files, MapSet.new(), fn f, acc ->
-        cond do
-          match?(%MapSet{}, Map.get(f, :products_set)) ->
-            MapSet.union(acc, f.products_set)
-
-          match?(%MapSet{}, Map.get(f.metrics, :products)) ->
-            MapSet.union(acc, f.metrics.products)
-
-          true ->
-            acc
-        end
-      end)
-
-    %{
-      total_sales: total_sales,
-      unique_products: MapSet.size(products_union)
-    }
-  end
-
-  # Sums total, active and inactive users.
-  # Only status == :ok files are included to avoid partial/failed data.
-  defp consolidate_json(files) do
-    ok_files = Enum.filter(files, &(&1.status == :ok))
-
-    Enum.reduce(ok_files, %{total_users: 0, active_users: 0, inactive_users: 0}, fn f, acc ->
-      %{
-        total_users: acc.total_users + f.metrics.total_users,
-        active_users: acc.active_users + f.metrics.active_users,
-        inactive_users: acc.inactive_users + f.metrics.inactive_users
-      }
-    end)
-  end
-
-  # Sums total entries and fuses maps.
-  # Only status == :ok files are included to avoid partial/failed data.
-  defp consolidate_log(files) do
-    ok_files = Enum.filter(files, &(&1.status == :ok))
-
-    total_entries = Enum.reduce(ok_files, 0, fn f, acc -> acc + f.metrics.total_entries end)
-
-    by_level =
-      Enum.reduce(ok_files, %{}, fn f, acc ->
-        Enum.reduce(f.metrics.by_level, acc, fn {level, count}, a ->
-          Map.update(a, level, count, &(&1 + count))
-        end)
-      end)
-
-    %{total_entries: total_entries, by_level: by_level}
-  end
-
-  # Assigns default values for CSV metrics in case of an error
-  defp empty_csv_metrics do
-    %{
-      total_sales: 0.0,
-      unique_products: 0,
-      top_product: nil,
-      top_category: nil,
-      avg_discount_pct: 0.0,
-      date_range: {nil, nil}
-    }
-  end
-
-  # Assigns default values for JSON metrics in case of an error
-  defp empty_json_metrics do
-    %{
-      total_users: 0,
-      active_users: 0,
-      inactive_users: 0,
-      avg_session_seconds: 0.0,
-      total_pages: 0,
-      top_actions: [],
-      peak_hour: nil
-    }
-  end
-
-  # Assigns default values for log metrics in case of an error
-  defp empty_log_metrics do
-    %{
-      total_entries: 0,
-      by_level: %{},
-      by_hour: %{},
-      top_error_messages: [],
-      top_error_component: nil,
-      critical_error_gaps_seconds: %{count: 0, avg: 0.0, min: nil, max: nil},
-      recurrent_error_patterns: []
-    }
   end
 
   # Resolves the error log path from options; nil disables logging
@@ -1491,6 +1267,208 @@ defmodule FileProcessor do
     :ok
   end
 
+  #
+  # ------------------------------------------------------ CSV FUNCTIONS ------------------------------------------------------
+  # This section contains only functions related to CSV processing
+  #
+  # Uses CSVParser to process CSV files
+  defp process_csv(file) do
+    case FileProcessor.Parsers.CSVParser.parse(file.content) do
+      {:ok, %{rows: rows, errors: row_errors}} ->
+        metrics = FileProcessor.Metrics.CSVMetrics.compute(rows)
+
+        products_set =
+          rows
+          |> Enum.map(& &1.product)
+          |> MapSet.new()
+
+        status =
+          cond do
+            length(rows) == 0 and length(row_errors) > 0 -> :failed
+            length(row_errors) > 0 -> :partial
+            true -> :ok
+          end
+
+        {%{
+           path: file.path,
+           bytes: file.bytes,
+           status: status,
+           metrics: metrics,
+           products_set: products_set,
+           errors: row_errors
+         }, []}
+
+      {:error, reason} ->
+        {%{
+           path: file.path,
+           bytes: file.bytes,
+           status: :failed,
+           metrics: empty_csv_metrics(),
+           products_set: MapSet.new(),
+           errors: []
+         }, [%{path: file.path, error: reason}]}
+    end
+  end
+
+  # Calculates total sales and unique products from a list of CSV files.
+  # Only status == :ok files are included to avoid partial/failed data.
+  defp consolidate_csv(files) do
+    ok_files = Enum.filter(files, &(&1.status == :ok))
+
+    total_sales =
+      Enum.reduce(ok_files, 0.0, fn f, acc ->
+        acc + f.metrics.total_sales
+      end)
+
+    products_union =
+      Enum.reduce(ok_files, MapSet.new(), fn f, acc ->
+        cond do
+          match?(%MapSet{}, Map.get(f, :products_set)) ->
+            MapSet.union(acc, f.products_set)
+
+          match?(%MapSet{}, Map.get(f.metrics, :products)) ->
+            MapSet.union(acc, f.metrics.products)
+
+          true ->
+            acc
+        end
+      end)
+
+    %{
+      total_sales: total_sales,
+      unique_products: MapSet.size(products_union)
+    }
+  end
+
+  # Assigns default values for CSV metrics in case of an error
+  defp empty_csv_metrics do
+    %{
+      total_sales: 0.0,
+      unique_products: 0,
+      top_product: nil,
+      top_category: nil,
+      avg_discount_pct: 0.0,
+      date_range: {nil, nil}
+    }
+  end
+
+  # ------------------------------------------------------ JSON FUNCTIONS ------------------------------------------------------
+  # This section contains only functions related to JSON processing
+  #
+  # Uses JSONParser to process JSON files
+  defp process_json(file) do
+    case FileProcessor.Parsers.JSONParser.parse(file.content) do
+      {:ok, json} ->
+        metrics = FileProcessor.Metrics.JSONMetrics.compute(json)
+        {%{path: file.path, bytes: file.bytes, status: :ok, metrics: metrics, errors: []}, []}
+
+      {:error, reason} ->
+        {%{
+           path: file.path,
+           bytes: file.bytes,
+           status: :failed,
+           metrics: empty_json_metrics(),
+           errors: []
+         }, [%{path: file.path, error: reason}]}
+    end
+  end
+
+  # Sums total, active and inactive users.
+  # Only status == :ok files are included to avoid partial/failed data.
+  defp consolidate_json(files) do
+    ok_files = Enum.filter(files, &(&1.status == :ok))
+
+    Enum.reduce(ok_files, %{total_users: 0, active_users: 0, inactive_users: 0}, fn f, acc ->
+      %{
+        total_users: acc.total_users + f.metrics.total_users,
+        active_users: acc.active_users + f.metrics.active_users,
+        inactive_users: acc.inactive_users + f.metrics.inactive_users
+      }
+    end)
+  end
+
+  # Assigns default values for JSON metrics in case of an error
+  defp empty_json_metrics do
+    %{
+      total_users: 0,
+      active_users: 0,
+      inactive_users: 0,
+      avg_session_seconds: 0.0,
+      total_pages: 0,
+      top_actions: [],
+      peak_hour: nil
+    }
+  end
+
+  # ------------------------------------------------------ LOG FUNCTIONS ------------------------------------------------------
+  # This section contains only functions related to log processing
+  #
+
+  # Uses LogParser to process log files
+  defp process_log(file) do
+    case FileProcessor.Parsers.LogParser.parse(file.content) do
+      {:ok, %{entries: entries, errors: parse_errors}} ->
+        metrics = FileProcessor.Metrics.LogMetrics.compute(entries)
+
+        status =
+          cond do
+            length(entries) == 0 and length(parse_errors) > 0 -> :failed
+            length(parse_errors) > 0 -> :partial
+            true -> :ok
+          end
+
+        {%{
+           path: file.path,
+           bytes: file.bytes,
+           status: status,
+           metrics: metrics,
+           errors: parse_errors
+         }, []}
+
+      {:error, reason} ->
+        {%{
+           path: file.path,
+           bytes: file.bytes,
+           status: :failed,
+           metrics: empty_log_metrics(),
+           errors: []
+         }, [%{path: file.path, error: reason}]}
+    end
+  end
+
+  # Sums total entries and fuses maps.
+  # Only status == :ok files are included to avoid partial/failed data.
+  defp consolidate_log(files) do
+    ok_files = Enum.filter(files, &(&1.status == :ok))
+
+    total_entries = Enum.reduce(ok_files, 0, fn f, acc -> acc + f.metrics.total_entries end)
+
+    by_level =
+      Enum.reduce(ok_files, %{}, fn f, acc ->
+        Enum.reduce(f.metrics.by_level, acc, fn {level, count}, a ->
+          Map.update(a, level, count, &(&1 + count))
+        end)
+      end)
+
+    %{total_entries: total_entries, by_level: by_level}
+  end
+
+  # Assigns default values for log metrics in case of an error
+  defp empty_log_metrics do
+    %{
+      total_entries: 0,
+      by_level: %{},
+      by_hour: %{},
+      top_error_messages: [],
+      top_error_component: nil,
+      critical_error_gaps_seconds: %{count: 0, avg: 0.0, min: nil, max: nil},
+      recurrent_error_patterns: []
+    }
+  end
+
+  # ------------------------------------------------------ HELPERS ------------------------------------------------------
+  # This section contains utility functions
+  #
   # Formats a consistent timestamp
   defp utc_timestamp do
     NaiveDateTime.utc_now()
@@ -1515,5 +1493,52 @@ defmodule FileProcessor do
   defp format_log_line(other) do
     timestamp = utc_timestamp()
     "[#{timestamp}] error=#{inspect(other)}\n"
+  end
+
+  # Prints a single progress line for parallel processing
+  defp print_parallel_progress(done, total, path, status) do
+    filename = Path.basename(path)
+    IO.puts("[parallel] #{done}/#{total} processed: #{filename} (#{status})")
+  end
+
+  # Resolves parallel execution options with safe defaults that preserve previous behavior
+  defp normalize_parallel_opts(opts, total_jobs) do
+    max_workers_raw = Keyword.get(opts, :max_workers, :infinity)
+
+    max_workers =
+      cond do
+        max_workers_raw == :infinity ->
+          total_jobs
+
+        is_integer(max_workers_raw) and max_workers_raw > 0 ->
+          min(max_workers_raw, total_jobs)
+
+        true ->
+          total_jobs
+      end
+
+    timeout_raw = Keyword.get(opts, :timeout_ms, :infinity)
+
+    timeout_ms =
+      cond do
+        timeout_raw == :infinity ->
+          :infinity
+
+        is_integer(timeout_raw) and timeout_raw > 0 ->
+          timeout_raw
+
+        true ->
+          :infinity
+      end
+
+    retries_raw = Keyword.get(opts, :retries, 0)
+
+    retries =
+      cond do
+        is_integer(retries_raw) and retries_raw >= 0 -> retries_raw
+        true -> 0
+      end
+
+    {max_workers, timeout_ms, retries}
   end
 end
