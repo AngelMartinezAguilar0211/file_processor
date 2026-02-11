@@ -1,4 +1,4 @@
-defmodule FileProcessor.CLI do
+defmodule API.FileProcessor.CLI do
   @moduledoc false
 
   # Entry point for escript.
@@ -63,7 +63,7 @@ defmodule FileProcessor.CLI do
       |> maybe_put(:retries, parse_nonneg_int(opts[:retries]))
       |> maybe_put(:error_log_path, opts[:error_log_path])
 
-    case FileProcessor.run(input, out_path, mode, run_opts) do
+    case API.FileProcessor.run(input, out_path, mode, run_opts) do
       {:ok, report_path} ->
         IO.puts("OK: #{report_path}")
         System.halt(0)

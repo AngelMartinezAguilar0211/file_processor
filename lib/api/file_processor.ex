@@ -1,4 +1,4 @@
-defmodule FileProcessor do
+defmodule API.FileProcessor do
   @moduledoc """
   Main entry point for the FileProcessor system.
 
@@ -42,7 +42,7 @@ defmodule FileProcessor do
 
   ## Examples
 
-      iex> {:ok, path} = FileProcessor.run("data", "reporte_final.txt", "sequential")
+      iex> {:ok, path} = API.FileProcessor.run("data", "reporte_final.txt", "sequential")
       iex> is_binary(path)
       true
 
@@ -492,10 +492,10 @@ defmodule FileProcessor do
   # Writes a report using the shared ReportGenerator and returns the absolute path
   defp write_report(out_path, report_data) do
     # Build the report content (same generator used by both modes)
-    content = FileProcessor.ReportGenerator.build(report_data)
+    content = API.FileProcessor.ReportGenerator.build(report_data)
 
     # Write the report to disk and return its absolute path
-    final_path = FileProcessor.ReportGenerator.write!(out_path, content)
+    final_path = API.FileProcessor.ReportGenerator.write!(out_path, content)
 
     # Success tuple with report path
     {:ok, final_path}
@@ -506,7 +506,7 @@ defmodule FileProcessor do
           {:ok, [String.t()], [map()]}
   defp discover_files(inputs) do
     # Delegate discovery and validation to FileReceiver
-    FileProcessor.FileReceiver.obtain(inputs)
+    API.FileProcessor.FileReceiver.obtain(inputs)
   end
 
   # Discovers supported file paths and aggregates discovery errors without reading contents
@@ -1275,7 +1275,7 @@ defmodule FileProcessor do
   defp process_csv(file) do
     case FileProcessor.Parsers.CSVParser.parse(file.content) do
       {:ok, %{rows: rows, errors: row_errors}} ->
-        metrics = FileProcessor.Metrics.CSVMetrics.compute(rows)
+        metrics = API.FileProcessor.Metrics.CSVMetrics.compute(rows)
 
         products_set =
           rows
@@ -1359,7 +1359,7 @@ defmodule FileProcessor do
   defp process_json(file) do
     case FileProcessor.Parsers.JSONParser.parse(file.content) do
       {:ok, json} ->
-        metrics = FileProcessor.Metrics.JSONMetrics.compute(json)
+        metrics = API.FileProcessor.Metrics.JSONMetrics.compute(json)
         {%{path: file.path, bytes: file.bytes, status: :ok, metrics: metrics, errors: []}, []}
 
       {:error, reason} ->
@@ -1408,7 +1408,7 @@ defmodule FileProcessor do
   defp process_log(file) do
     case FileProcessor.Parsers.LogParser.parse(file.content) do
       {:ok, %{entries: entries, errors: parse_errors}} ->
-        metrics = FileProcessor.Metrics.LogMetrics.compute(entries)
+        metrics = API.FileProcessor.Metrics.LogMetrics.compute(entries)
 
         status =
           cond do

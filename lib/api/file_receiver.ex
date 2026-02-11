@@ -1,4 +1,4 @@
-defmodule FileProcessor.FileReceiver do
+defmodule API.FileProcessor.FileReceiver do
   @moduledoc """
   This module is responsible for discovering and validating input files.
 

@@ -1,4 +1,4 @@
-defmodule FileProcessor.Metrics.JSONMetrics do
+defmodule API.FileProcessor.Metrics.JSONMetrics do
   # Computes all JSON-related metrics from a decoded JSON map.
   #
   # Expected structure:

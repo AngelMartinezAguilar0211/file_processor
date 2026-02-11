@@ -1,4 +1,4 @@
-defmodule FileProcessor.Metrics.CSVMetrics do
+defmodule API.FileProcessor.Metrics.CSVMetrics do
   # Computes all CSV-related metrics from a list of parsed rows.
   # Each row is expected to be a map containing:
   # :date, :product, :category, :quantity, :discount_pct, :net

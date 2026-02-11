@@ -1,6 +1,6 @@
 defmodule FileProcessorTest do
   use ExUnit.Case
-  doctest FileProcessor
+  doctest API.FileProcessor
   @output "reporte_final.txt"
 
   setup do
@@ -64,7 +64,7 @@ defmodule FileProcessorTest do
     {:ok, devnull} = File.open("/dev/null", [:write])
     Process.group_leader(self(), devnull)
 
-    {:ok, path} = FileProcessor.run("data", @output, "sequential")
+    {:ok, path} = API.FileProcessor.run("data", @output, "sequential")
 
     Process.group_leader(self(), original)
     File.close(devnull)
@@ -76,7 +76,7 @@ defmodule FileProcessorTest do
   test "run/1 defaults to parallel mode and prints progress lines" do
     io =
       ExUnit.CaptureIO.capture_io(fn ->
-        {:ok, path} = FileProcessor.run("data")
+        {:ok, path} = API.FileProcessor.run("data")
         assert File.exists?(path)
 
         content = File.read!(path)
@@ -341,7 +341,7 @@ defmodule FileProcessorTest do
   test "benchmark/1 prints block correctly" do
     io =
       ExUnit.CaptureIO.capture_io(fn ->
-        FileProcessor.benchmark("data")
+        API.FileProcessor.benchmark("data")
       end)
 
     # Console comparison block
@@ -355,14 +355,14 @@ defmodule FileProcessorTest do
   test "FileReceiver.obtain/1 returns only supported files for a directory with existing fixtures" do
     dir = existing_fixtures_dir!()
 
-    {:ok, files, errors} = FileProcessor.FileReceiver.obtain(dir)
+    {:ok, files, errors} = API.FileProcessor.FileReceiver.obtain(dir)
 
     # Directory used here is guaranteed to contain at least one supported fixture
     assert errors == []
     assert is_list(files)
     assert length(files) > 0
 
-    supported = FileProcessor.FileReceiver.supported_exts()
+    supported = API.FileProcessor.FileReceiver.supported_exts()
 
     assert Enum.all?(files, fn path ->
              Path.extname(path) in supported
@@ -375,7 +375,7 @@ defmodule FileProcessorTest do
     unsupported_existing_file = __ENV__.file
 
     {:ok, files, errors} =
-      FileProcessor.FileReceiver.obtain([
+      API.FileProcessor.FileReceiver.obtain([
         dir,
         unsupported_existing_file
       ])
@@ -392,7 +392,7 @@ defmodule FileProcessorTest do
     dir = Path.dirname(file)
 
     {:ok, files, errors} =
-      FileProcessor.FileReceiver.obtain([
+      API.FileProcessor.FileReceiver.obtain([
         dir,
         file,
         file
@@ -405,7 +405,7 @@ defmodule FileProcessorTest do
   end
 
   test "FileReceiver.obtain/1 returns no_supported_files for an existing directory without supported files" do
-    {:ok, files, errors} = FileProcessor.FileReceiver.obtain("test")
+    {:ok, files, errors} = API.FileProcessor.FileReceiver.obtain("test")
 
     assert files == []
 
@@ -527,7 +527,7 @@ defmodule FileProcessorTest do
     {:ok, devnull} = File.open("/dev/null", [:write])
     Process.group_leader(self(), devnull)
 
-    result = FileProcessor.run(path, output, mode)
+    result = API.FileProcessor.run(path, output, mode)
 
     Process.group_leader(self(), original)
     File.close(devnull)

@@ -1,4 +1,4 @@
-defmodule FileProcessor.Metrics.LogMetrics do
+defmodule API.FileProcessor.Metrics.LogMetrics do
   # Severity levels considered critical for analysis
   @critical_levels ["FATAL", "ERROR"]
 
