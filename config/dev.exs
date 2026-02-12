@@ -2,8 +2,8 @@ import Config
 
 # Configure your database
 config :file_processor, FileProcessor.Repo,
-  username: "postgres",
-  password: "postgres",
+  username: "file_processor",
+  password: "file_processor123",
   hostname: "localhost",
   database: "file_processor_dev",
   stacktrace: true,

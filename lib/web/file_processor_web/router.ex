@@ -18,6 +18,8 @@ defmodule FileProcessorWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+
+    post "/procesar", PageController, :procesar
   end
 
   # Other scopes may use custom stacks.

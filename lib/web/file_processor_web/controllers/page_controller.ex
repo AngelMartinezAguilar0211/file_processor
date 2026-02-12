@@ -4,4 +4,10 @@ defmodule FileProcessorWeb.PageController do
   def home(conn, _params) do
     render(conn, :home)
   end
+
+  def procesar(conn, params) do
+  IO.inspect(params, label: "PARAMS RECIBIDOS")
+
+  text(conn, "Formulario recibido correctamente")
+end
 end
