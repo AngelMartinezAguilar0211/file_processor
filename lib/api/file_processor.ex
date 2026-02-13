@@ -1273,7 +1273,7 @@ defmodule API.FileProcessor do
   #
   # Uses CSVParser to process CSV files
   defp process_csv(file) do
-    case FileProcessor.Parsers.CSVParser.parse(file.content) do
+    case API.FileProcessor.Parsers.CSVParser.parse(file.content) do
       {:ok, %{rows: rows, errors: row_errors}} ->
         metrics = API.FileProcessor.Metrics.CSVMetrics.compute(rows)
 
@@ -1357,7 +1357,7 @@ defmodule API.FileProcessor do
   #
   # Uses JSONParser to process JSON files
   defp process_json(file) do
-    case FileProcessor.Parsers.JSONParser.parse(file.content) do
+    case API.FileProcessor.Parsers.JSONParser.parse(file.content) do
       {:ok, json} ->
         metrics = API.FileProcessor.Metrics.JSONMetrics.compute(json)
         {%{path: file.path, bytes: file.bytes, status: :ok, metrics: metrics, errors: []}, []}
@@ -1406,7 +1406,7 @@ defmodule API.FileProcessor do
 
   # Uses LogParser to process log files
   defp process_log(file) do
-    case FileProcessor.Parsers.LogParser.parse(file.content) do
+    case API.FileProcessor.Parsers.LogParser.parse(file.content) do
       {:ok, %{entries: entries, errors: parse_errors}} ->
         metrics = API.FileProcessor.Metrics.LogMetrics.compute(entries)
 

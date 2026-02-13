@@ -1,4 +1,4 @@
-defmodule FileProcessor.Parsers.CSVParser do
+defmodule API.FileProcessor.Parsers.CSVParser do
   # Define a NimbleCSV parser with comma separator and double-quote escape
   NimbleCSV.define(FileProcessorCSV, separator: ",", escape: "\"")
 

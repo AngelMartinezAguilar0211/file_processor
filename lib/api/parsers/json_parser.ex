@@ -1,4 +1,4 @@
-defmodule FileProcessor.Parsers.JSONParser do
+defmodule API.FileProcessor.Parsers.JSONParser do
   # Parses raw JSON content.
   def parse(content) when is_binary(content) do
     # Attempt to decode the JSON using Jason

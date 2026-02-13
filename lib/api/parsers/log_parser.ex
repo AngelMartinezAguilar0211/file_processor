@@ -1,4 +1,4 @@
-defmodule FileProcessor.Parsers.LogParser do
+defmodule API.FileProcessor.Parsers.LogParser do
   # Regular expression used to parse log lines.
   # Expected format:
   # YYYY-MM-DD HH:MM:SS [LEVEL] [COMPONENT] Message
