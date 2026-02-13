@@ -1,88 +1,146 @@
 <!DOCTYPE html>
 <html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>File Processor - Dashboard</title>
-</head>
-<body>
+  </head>
+  <body>
     <div class="main-container">
-        <header class="header">
-            <div class="logo">File Processor</div>
-            <nav class="nav">
-                <a href="#">Inicio</a>
-                <a href="#">Información</a>
-            </nav>
-        </header>
+      <header class="header">
+        <div class="logo">File Processor</div>
+        <nav class="nav">
+          <a href="#">Inicio</a>
+          <a href="#">Información</a>
+        </nav>
+      </header>
 
-        <h1 class="main-title">Obtén métricas relevantes para archivos con extensión csv, json y log</h1>
+      <h1 class="main-title">
+        Obtén métricas relevantes para archivos con extensión csv, json y log
+      </h1>
 
-        <form action="/procesar" method="POST" class="processor-form">
-            <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
+      <form action="/procesar" method="POST" enctype="multipart/form-data" class="processor-form">
+        <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
 
-            
-            <div class="form-grid">
-                <div class="upload-section">
-                  <div class="drop-zone">
-                    <div class="icon-cloud">☁️</div>
-                    <p class="file-types-text">CSV, JSON, LOG</p>
-        
-                    <button type="button" class="btn-upload" onclick="document.getElementById('file-input').click()">
-                      Cargar Archivo
-                    </button>
-                    <input type="file" id="file-input" name="archivo_subido" style="display: none;" accept=".csv, .json, .log">
+        <div class="form-grid">
+          <div class="upload-section">
+            <div class="drop-zone">
+              <div class="icon-cloud">☁️</div>
+              <p class="file-types-text">CSV, JSON, LOG</p>
 
-                    <p class="path-divider">o escribe la ruta de tu archivo aquí:</p>
+              <button
+                type="button"
+                class="btn-upload"
+                onclick="document.getElementById('file-input').click()"
+              >
+                Cargar Archivos
+              </button>
+              <input
+                type="file"
+                id="file-input"
+                name="archivos_subidos[]"
+                multiple
+                style="display: none;"
+                accept=".csv, .json, .log"
+              />
 
-                    <input type="text" name="ruta_archivo" class="input-path" placeholder="C:\usuarios\documentos\archivo.csv">
-                </div>
+              <div id="file-list" style="margin-top: 10px;"></div>
+
+              <p class="path-divider">o escribe la ruta de tu archivo aquí:</p>
+
+              <input
+                type="text"
+                name="ruta_archivo"
+                class="input-path"
+                placeholder="C:\usuarios\documentos\archivo.csv"
+              />
+            </div>
+          </div>
+
+          <div class="options-section">
+            <h2 class="section-label">Opciones</h2>
+
+            <p class="input-label-small">Tipo de Procesamiento</p>
+            <div class="processing-cards">
+              <div class="card">
+                <input
+                  type="radio"
+                  name="processing_type"
+                  value="secuencial"
+                  id="secuencial"
+                  checked
+                />
+                <label for="secuencial">
+                  <span class="radio-dot"></span> Secuencial
+                </label>
               </div>
-
-                <div class="options-section">
-                    <h2 class="section-label">Opciones</h2>
-                    
-                    <p class="input-label-small">Tipo de Procesamiento</p>
-                    <div class="processing-cards">
-                        <div class="card">
-                            <input type="radio" name="processing_type" value="secuencial" id="secuencial" checked>
-                            <label for="secuencial">
-                                <span class="radio-dot"></span>
-                                Secuencial
-                            </label>
-                        </div>
-                        <div class="card">
-                            <input type="radio" name="processing_type" value="paralelo" id="paralelo">
-                            <label for="paralelo">
-                                <span class="radio-dot"></span>
-                                Paralelo
-                            </label>
-                        </div>
-                    </div>
-
-                    <div class="benchmark-row">
-                        <span class="benchmark-text">Benchmark</span>
-                        <label class="switch">
-                            <input type="checkbox" name="benchmark_active">
-                            <span class="slider"></span>
-                        </label>
-                    </div>
-
-                    <h2 class="section-label">Detalles</h2>
-                    <div class="details-grid">
-                        <input type="text" name="report_name" placeholder="Nombre del reporte" class="input-field">
-                        <input type="text" name="retry_count" placeholder="Reintentos por Archivo" class="input-field">
-                        <input type="text" name="max_workers" placeholder="Max Workers" class="input-field">
-                        <input type="text" name="timeout" placeholder="Timeout" class="input-field">
-                    </div>
-                </div>
+              <div class="card">
+                <input type="radio" name="processing_type" value="paralelo" id="paralelo" />
+                <label for="paralelo">
+                  <span class="radio-dot"></span> Paralelo
+                </label>
+              </div>
             </div>
 
-            <div class="footer-action">
-                <button type="submit" class="btn-submit">Iniciar Proceso</button>
+            <div class="benchmark-row">
+              <span class="benchmark-text">Benchmark</span>
+              <label class="switch">
+                <input type="checkbox" name="benchmark_active" />
+                <span class="slider"></span>
+              </label>
             </div>
 
-        </form>
+            <h2 class="section-label">Detalles</h2>
+            <div class="details-grid">
+              <input
+                type="text"
+                name="report_name"
+                placeholder="Nombre del reporte"
+                class="input-field"
+              />
+              <input
+                type="text"
+                name="retry_count"
+                placeholder="Reintentos por Archivo"
+                class="input-field"
+              />
+              <input type="text" name="max_workers" placeholder="Max Workers" class="input-field" />
+              <input type="text" name="timeout" placeholder="Timeout (ms)" class="input-field" />
+            </div>
+          </div>
+        </div>
+
+        <div class="footer-action">
+          <button type="submit" class="btn-submit">Iniciar Proceso</button>
+        </div>
+      </form>
     </div>
-</body>
-</html>
 
+    <script>
+      // Mostrar los nombres de los archivos seleccionados
+      document.getElementById('file-input').addEventListener('change', function(e) {
+          const files = e.target.files;
+          const fileList = document.getElementById('file-list');
+
+          if (files.length === 0) {
+              fileList.innerHTML = '';
+              return;
+          }
+
+          // Crear lista de archivos
+          let html = '<div style="background: #f0f4ff; padding: 12px; border-radius: 8px; border-left: 4px solid #667eea;">';
+          html += `<div style="font-weight: 600; color: #667eea; margin-bottom: 8px;">📁 ${files.length} archivo(s) seleccionado(s):</div>`;
+          html += '<ul style="margin: 0; padding-left: 20px; color: #4a5568;">';
+
+          for (let i = 0; i < files.length; i++) {
+              const file = files[i];
+              const size = (file.size / 1024).toFixed(1); // KB
+              html += `<li style="margin: 4px 0;">${file.name} <span style="color: #718096; font-size: 0.85em;">(${size} KB)</span></li>`;
+          }
+
+          html += '</ul></div>';
+          fileList.innerHTML = html;
+      });
+    </script>
+  </body>
+</html>

@@ -1237,10 +1237,12 @@ defmodule API.FileProcessor do
     # Creates a single directory (fails if parent dirs don't exist)
     case File.mkdir("logs") do
       :ok -> :ok
+      {:error, :eexist} -> :ok
       {:error, reason} -> {:error, reason}
     end
 
-    Path.rootname("logs/#{out_path}") <> "_errors.log"
+    filename = Path.basename(out_path)
+    Path.rootname("logs/#{filename}") <> "_errors.log"
   end
 
   # Writes errors to a log file, appending lines and creating the file lazily
