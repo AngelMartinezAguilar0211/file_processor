@@ -383,29 +383,17 @@ defmodule FileProcessorWeb.FileProcessingAdapter do
 
   # Ejecuta el benchmark
   defp ejecutar_benchmark(input_path, opciones) do
-    # Capturar la salida del benchmark
-    original_group_leader = Process.group_leader()
-    {:ok, string_io} = StringIO.open("")
-    Process.group_leader(self(), string_io)
-
     try do
-      API.FileProcessor.benchmark(input_path, opciones)
-
-      # Restaurar group leader y obtener salida
-      Process.group_leader(self(), original_group_leader)
-      {_in, output} = StringIO.contents(string_io)
-      StringIO.close(string_io)
+      {:ok, resultados} = API.FileProcessor.benchmark(input_path, opciones)
 
       {:ok,
        %{
          benchmark: true,
-         resultado: output,
+         resultados: resultados,
          exito: true
        }}
     rescue
       e ->
-        Process.group_leader(self(), original_group_leader)
-        StringIO.close(string_io)
         {:error, "Error en benchmark: #{Exception.message(e)}"}
     end
   end

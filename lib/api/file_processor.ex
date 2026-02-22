@@ -452,19 +452,15 @@ defmodule API.FileProcessor do
         IO.puts("Could not delete logs/benchmark_sequential_errors.log: #{inspect(reason)}")
     end
 
-    # Print comparison block to the console
-    IO.puts("""
-    BENCHMARK RESULTS
-    Sequential:
-      - Time (s): #{Float.round(seq_s, 6)}
-      - Result: #{format_benchmark_result(seq_result)}
+    resultados = %{
+      sequential_time: seq_s,
+      sequential_result: format_benchmark_result(seq_result),
+      parallel_time: par_s,
+      parallel_result: format_benchmark_result(par_result),
+      speedup: speedup
+    }
 
-    Parallel:
-      - Time (s): #{Float.round(par_s, 6)}
-      - Result: #{format_benchmark_result(par_result)}
-
-    Speedup: #{Float.round(speedup, 3)}x
-    """)
+    {:ok, resultados}
   end
 
   # Special function to catch bad arguments given to the benchmark functions

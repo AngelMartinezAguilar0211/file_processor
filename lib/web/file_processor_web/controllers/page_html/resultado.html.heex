@@ -19,18 +19,62 @@
 
       <%= if @resultado[:benchmark] do %>
         <!-- Vista de resultados de Benchmark -->
-        <div class="results-container benchmark-results">
+        <div class="results-container">
           <div class="section-header">
-            <h2>Benchmark Completado</h2>
-            <span class="status-badge success">Exitoso</span>
+            <h2>Resultados del Benchmark</h2>
+            <span class="status-badge" style="background: #e0e7ff; color: #4f46e5;">
+              Comparación de Rendimiento
+            </span>
           </div>
 
-          <div class="benchmark-output">
-            <pre><%= @resultado[:resultado] %></pre>
+          <div style="background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); color: white; border-radius: 8px; padding: 2rem; text-align: center; margin-bottom: 2rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+            <h3 style="margin-top: 0; color: #e0e7ff; font-weight: 500;">
+              Factor de Aceleración
+            </h3>
+            <div style="font-size: 3.5rem; font-weight: 800; line-height: 1;">
+              {Float.round(@resultado[:resultados].speedup, 2)}x
+            </div>
+            <p style="margin-bottom: 0; margin-top: 0.5rem; color: #c7d2fe; font-size: 1.125rem;">
+              <%= if @resultado[:resultados].speedup > 1.0 do %>
+                El procesamiento paralelo fue más rápido.
+              <% else %>
+                El procesamiento secuencial fue más rápido.
+              <% end %>
+            </p>
           </div>
 
-          <div class="action-buttons">
-            <a href="/" class="btn-primary">Nuevo Procesamiento</a>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+            <div
+              class="summary-section"
+              style="border-top: 4px solid #64748b; background: #f8fafc; margin-bottom: 0;"
+            >
+              <h3 style="color: #475569; margin-top: 0; display: flex; align-items: center; justify-content: space-between;">
+                <span>Modo Secuencial</span>
+                <span style="font-size: 1.5rem;">⏱️</span>
+              </h3>
+              <div style="font-size: 2rem; font-weight: bold; color: #0f172a; margin: 1rem 0;">
+                {Float.round(@resultado[:resultados].sequential_time * 1000, 2)}
+                <span style="font-size: 1rem; color: #64748b;">ms</span>
+              </div>
+            </div>
+
+            <div
+              class="summary-section"
+              style="border-top: 4px solid #10b981; background: #ecfdf5; margin-bottom: 0;"
+            >
+              <h3 style="color: #047857; margin-top: 0; display: flex; align-items: center; justify-content: space-between;">
+                <span>Modo Paralelo</span>
+                <span style="font-size: 1.5rem;">⚡</span>
+              </h3>
+              <div style="font-size: 2rem; font-weight: bold; color: #064e3b; margin: 1rem 0;">
+                {Float.round(@resultado[:resultados].parallel_time * 1000, 2)}
+                <span style="font-size: 1rem; color: #047857;">ms</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="actions-container">
+            <a href="/" class="btn-primary">⬅️ Volver al Inicio</a>
           </div>
         </div>
       <% else %>
