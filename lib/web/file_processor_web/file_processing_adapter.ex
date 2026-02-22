@@ -312,7 +312,7 @@ defmodule FileProcessorWeb.FileProcessingAdapter do
     # Limpiar archivo temporal si fue un archivo subido (está en priv/static/uploads)
     limpiar_archivo_temporal(input_path)
 
-    resultado
+    guardar_en_historial(resultado)
   end
 
   # Handles both a single path (binary) and a list of paths.
@@ -436,7 +436,6 @@ defmodule FileProcessorWeb.FileProcessingAdapter do
     end
   end
 
-  # Formatea los errores para mostrarlos al usuario
   defp formatear_errores(errores) when is_list(errores) do
     errores
     |> Enum.map(fn
@@ -454,4 +453,58 @@ defmodule FileProcessorWeb.FileProcessingAdapter do
     end)
     |> Enum.join("\n")
   end
+
+  defp guardar_en_historial({:ok, %{benchmark: true} = res}) do
+    attrs = %{
+      mode: "benchmark",
+      total_files: 2,
+      success_rate: 100.0,
+      execution_time_ms: (res.resultados.sequential_time + res.resultados.parallel_time) * 1000,
+      data: res.resultados
+    }
+
+    FileProcessor.History.create_report(attrs)
+    {:ok, res}
+  end
+
+  defp guardar_en_historial({:ok, res}) do
+    total = res.report_data.counts.total
+    exitosos = res.report_data.counts.ok
+    tasa = if total > 0, do: exitosos * 100.0 / total, else: 0.0
+
+    data_limpia = limpiar_para_json(res.report_data)
+
+    attrs = %{
+      mode: res.modo,
+      total_files: total,
+      success_rate: tasa,
+      execution_time_ms: res.report_data.elapsed_seconds * 1000,
+      data: data_limpia
+    }
+
+    FileProcessor.History.create_report(attrs)
+    {:ok, res}
+  end
+
+  defp guardar_en_historial(error), do: error
+
+  defp limpiar_para_json(%MapSet{} = data) do
+    data |> MapSet.to_list() |> Enum.map(&limpiar_para_json/1)
+  end
+
+  defp limpiar_para_json(%{__struct__: _} = data), do: data
+
+  defp limpiar_para_json(data) when is_map(data) do
+    Map.new(data, fn {k, v} -> {k, limpiar_para_json(v)} end)
+  end
+
+  defp limpiar_para_json(data) when is_list(data) do
+    Enum.map(data, &limpiar_para_json/1)
+  end
+
+  defp limpiar_para_json(data) when is_tuple(data) do
+    data |> Tuple.to_list() |> Enum.map(&limpiar_para_json/1)
+  end
+
+  defp limpiar_para_json(data), do: data
 end
