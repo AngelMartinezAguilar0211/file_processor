@@ -18,7 +18,27 @@
       <h1 class="main-title">
         Obtén métricas relevantes para archivos con extensión csv, json y log
       </h1>
+      <%= if Phoenix.Flash.get(@flash, :error) do %>
+        <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; color: #b91c1c; padding: 1rem; margin-bottom: 2rem; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 100%; max-width: 800px; margin-left: auto; margin-right: auto;">
+          <div style="display: flex; align-items: flex-start;">
+            <span style="font-size: 1.25rem; margin-right: 0.75rem;">⚠️</span>
+            <div style="font-family: inherit; line-height: 1.5;">
+              {Phoenix.Flash.get(@flash, :error)}
+            </div>
+          </div>
+        </div>
+      <% end %>
 
+      <%= if Phoenix.Flash.get(@flash, :info) do %>
+        <div style="background-color: #f0fdf4; border-left: 4px solid #22c55e; color: #15803d; padding: 1rem; margin-bottom: 2rem; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 100%; max-width: 800px; margin-left: auto; margin-right: auto;">
+          <div style="display: flex; align-items: flex-start;">
+            <span style="font-size: 1.25rem; margin-right: 0.75rem;">✅</span>
+            <div style="white-space: pre-wrap; font-family: inherit; line-height: 1.5;">
+              {Phoenix.Flash.get(@flash, :info)}
+            </div>
+          </div>
+        </div>
+      <% end %>
       <form action="/procesar" method="POST" enctype="multipart/form-data" class="processor-form">
         <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
 

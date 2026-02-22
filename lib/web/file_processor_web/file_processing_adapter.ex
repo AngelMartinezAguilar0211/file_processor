@@ -452,6 +452,9 @@ defmodule FileProcessorWeb.FileProcessingAdapter do
   defp formatear_errores(errores) when is_list(errores) do
     errores
     |> Enum.map(fn
+      %{reason: :no_successful_files} ->
+        "No se pudo procesar ningún archivo. Todos los documentos presentaban errores críticos o su formato era inválido."
+
       %{path: path, reason: reason, details: details} ->
         "• #{Path.basename(path)}: #{reason} - #{inspect(details)}"
 
