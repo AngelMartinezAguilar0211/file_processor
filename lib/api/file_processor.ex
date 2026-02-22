@@ -498,7 +498,7 @@ defmodule API.FileProcessor do
     final_path = API.FileProcessor.ReportGenerator.write!(out_path, content)
 
     # Success tuple with report path
-    {:ok, final_path}
+    {:ok, final_path, report_data}
   end
 
   # Discovers files delegating the process to FileReceiver files

@@ -49,11 +49,15 @@ defmodule FileProcessorWeb.FileProcessingAdapter do
     # Múltiples archivos subidos
     IO.puts("📤 Procesando #{length(archivos)} archivo(s) subido(s)...")
 
+    # Generar un ID de lote único para esta ejecución (servirá como nombre de la subcarpeta)
+    batch_id = System.system_time(:millisecond)
+
     # Copiar todos los archivos y recolectar sus rutas
     rutas_permanentes =
       archivos
       |> Enum.map(fn upload ->
-        case copiar_archivo_subido(upload) do
+        # Ahora pasamos el batch_id como segundo argumento
+        case copiar_archivo_subido(upload, batch_id) do
           {:ok, ruta} -> ruta
           {:error, _} -> nil
         end
@@ -63,14 +67,28 @@ defmodule FileProcessorWeb.FileProcessingAdapter do
     if rutas_permanentes == [] do
       {nil, nil}
     else
-      # Retornar lista de rutas (el sistema ya soporta listas)
+      # Retornar lista de rutas
       {rutas_permanentes, nil}
     end
   end
 
+  # También actualizamos la versión para un solo archivo por consistencia
   defp obtener_ruta_entrada(%{"archivos_subidos" => upload}) when is_map(upload) do
-    # Un solo archivo subido (compatibility)
-    case copiar_archivo_subido(upload) do
+    batch_id = System.system_time(:millisecond)
+
+    case copiar_archivo_subido(upload, batch_id) do
+      {:ok, ruta_permanente} ->
+        {ruta_permanente, upload.filename}
+
+      {:error, _reason} ->
+        {nil, nil}
+    end
+  end
+
+  defp obtener_ruta_entrada(%{"archivos_subidos" => upload}) when is_map(upload) do
+    batch_id = System.system_time(:millisecond)
+
+    case copiar_archivo_subido(upload, batch_id) do
       {:ok, ruta_permanente} ->
         {ruta_permanente, upload.filename}
 
@@ -88,21 +106,18 @@ defmodule FileProcessorWeb.FileProcessingAdapter do
     {nil, nil}
   end
 
-  # Copia el archivo subido a una ubicación permanente
-  defp copiar_archivo_subido(%Plug.Upload{path: temp_path, filename: filename}) do
-    # Crear directorio para archivos subidos si no existe
-    upload_dir = "priv/static/uploads"
+  # Copia el archivo subido a una ubicación permanente dentro de una carpeta de lote
+  defp copiar_archivo_subido(%Plug.Upload{path: temp_path, filename: filename}, batch_id) do
+    # Crear subdirectorio único para este lote
+    upload_dir = Path.join("priv/static/uploads", to_string(batch_id))
     File.mkdir_p!(upload_dir)
 
-    # Generar nombre único para evitar colisiones
-    timestamp = System.system_time(:millisecond)
-    nombre_unico = "#{timestamp}_#{filename}"
-    destino = Path.join(upload_dir, nombre_unico)
+    # El archivo conserva su nombre original exacto
+    destino = Path.join(upload_dir, filename)
 
-    # Copiar el archivo temporal a la ubicación permanente
     case File.cp(temp_path, destino) do
       :ok ->
-        IO.puts("✅ Archivo copiado: #{filename} -> #{destino}")
+        IO.puts("Archivo copiado: #{filename} -> #{destino}")
         {:ok, destino}
 
       {:error, reason} ->
@@ -302,8 +317,21 @@ defmodule FileProcessorWeb.FileProcessingAdapter do
 
   # Handles both a single path (binary) and a list of paths.
   defp limpiar_archivo_temporal(paths) when is_list(paths) do
-    # Process each path individually and always return :ok
+    # 1. Borrar cada archivo individualmente
     Enum.each(paths, &limpiar_archivo_temporal/1)
+
+    # 2. Borrar los directorios vacíos que quedaron
+    paths
+    |> Enum.map(&Path.dirname/1)
+    |> Enum.uniq()
+    |> Enum.each(fn dir ->
+      # Asegurarnos de que estamos borrando solo dentro de uploads
+      if String.starts_with?(dir, "priv/static/uploads/") and dir != "priv/static/uploads" do
+        # rmdir es seguro, solo borra la carpeta si ya no tiene archivos
+        File.rmdir(dir)
+      end
+    end)
+
     :ok
   end
 
@@ -330,7 +358,7 @@ defmodule FileProcessorWeb.FileProcessingAdapter do
   # Ejecuta el procesamiento normal
   defp ejecutar_procesamiento_normal(input_path, output_path, modo, opciones) do
     case API.FileProcessor.run(input_path, output_path, modo, opciones) do
-      {:ok, report_path} ->
+      {:ok, report_path, report_data} ->
         # Leer el contenido del reporte para mostrarlo
         contenido = File.read!(report_path)
 
@@ -342,6 +370,7 @@ defmodule FileProcessorWeb.FileProcessingAdapter do
            ruta_reporte: report_path,
            contenido: contenido,
            metricas: metricas,
+           report_data: report_data,
            modo: modo,
            exito: true
          }}
@@ -424,10 +453,10 @@ defmodule FileProcessorWeb.FileProcessingAdapter do
     errores
     |> Enum.map(fn
       %{path: path, reason: reason, details: details} ->
-        "• #{path}: #{reason} - #{inspect(details)}"
+        "• #{Path.basename(path)}: #{reason} - #{inspect(details)}"
 
       %{path: path, error: error} ->
-        "• #{path}: #{error}"
+        "• #{Path.basename(path)}: #{error}"
 
       otro ->
         "• #{inspect(otro)}"

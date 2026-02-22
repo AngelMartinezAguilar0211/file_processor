@@ -64,7 +64,7 @@ defmodule API.FileProcessor.CLI do
       |> maybe_put(:error_log_path, opts[:error_log_path])
 
     case API.FileProcessor.run(input, out_path, mode, run_opts) do
-      {:ok, report_path} ->
+      {:ok, report_path, _} ->
         IO.puts("OK: #{report_path}")
         System.halt(0)
 

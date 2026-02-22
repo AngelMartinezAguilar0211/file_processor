@@ -43,7 +43,7 @@ defmodule FileProcessorWeb.PageController do
         |> put_flash(:error, mensaje_error)
         |> redirect(to: ~p"/")
 
-      {:error, errores} when is_list(errores) ->
+      {:error, errores} when is_binary(errores) ->
         # Error con lista de errores: formatear y mostrar
         IO.puts("❌ Múltiples errores durante procesamiento")
         IO.inspect(errores, label: "ERRORES")

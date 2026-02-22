@@ -36,77 +36,427 @@
       <% else %>
         <!-- Vista de resultados normales -->
         <div class="results-container">
-          <!-- Sección de Métricas Resumidas -->
-          <div class="metrics-summary">
-            <div class="metric-card">
-              <div class="metric-label">Archivos Procesados</div>
-              <div class="metric-value">{@resultado[:metricas][:archivos_procesados]}</div>
-            </div>
-
-            <%= if @resultado[:metricas][:archivos_csv] > 0 do %>
-              <div class="metric-card">
-                <div class="metric-label">Archivos CSV</div>
-                <div class="metric-value">{@resultado[:metricas][:archivos_csv]}</div>
-              </div>
-            <% end %>
-
-            <%= if @resultado[:metricas][:archivos_json] > 0 do %>
-              <div class="metric-card">
-                <div class="metric-label">Archivos JSON</div>
-                <div class="metric-value">{@resultado[:metricas][:archivos_json]}</div>
-              </div>
-            <% end %>
-
-            <%= if @resultado[:metricas][:archivos_log] > 0 do %>
-              <div class="metric-card">
-                <div class="metric-label">Archivos LOG</div>
-                <div class="metric-value">{@resultado[:metricas][:archivos_log]}</div>
-              </div>
-            <% end %>
-
-            <div class="metric-card">
-              <div class="metric-label">Tiempo de Procesamiento</div>
-              <div class="metric-value">
-                {Float.round(@resultado[:metricas][:tiempo_procesamiento], 2)}s
-              </div>
-            </div>
-
-            <div class="metric-card">
-              <div class="metric-label">Tasa de Éxito</div>
-              <div class="metric-value success-rate">
-                {Float.round(@resultado[:metricas][:tasa_exito], 1)}%
-              </div>
-            </div>
-          </div>
-          
-<!-- Información del Procesamiento -->
-          <div class="processing-info">
-            <div class="info-row">
-              <span class="info-label">Modo de Procesamiento:</span>
-              <span class="info-value">{String.capitalize(@resultado[:modo])}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Ruta del Reporte:</span>
-              <span class="info-value code">{Path.basename(@resultado[:ruta_reporte])}</span>
-            </div>
-          </div>
-          
-<!-- Tabs para ver el reporte -->
           <div class="tabs-container">
             <div class="tabs-header">
               <button class="tab-button active" onclick="showTab('resumen')">Resumen</button>
-              <button class="tab-button" onclick="showTab('completo')">Reporte Completo</button>
+              <button class="tab-button" onclick="showTab('html')">Reporte Detallado</button>
+              <%= if @resultado[:report_data].counts.failed > 0 do %>
+                <button
+                  class="tab-button"
+                  onclick="showTab('errores')"
+                  style="color: #dc2626; font-weight: 600;"
+                >
+                  Errores por Archivo
+                </button>
+              <% end %>
+              <button class="tab-button" onclick="showTab('completo')">Archivo Texto</button>
             </div>
-            
-<!-- Tab Resumen -->
+
             <div id="tab-resumen" class="tab-content active">
-              <div class="summary-section">
-                <h3>Resumen Ejecutivo</h3>
-                <pre><%= extraer_seccion_resumen(@resultado[:contenido]) %></pre>
+              <div class="section-header">
+                <h2>Resumen Ejecutivo</h2>
+                <%= if @resultado[:report_data].counts.failed == 0 do %>
+                  <span class="status-badge success">Completado sin errores</span>
+                <% else %>
+                  <span class="status-badge" style="background: #fee2e2; color: #991b1b;">
+                    Completado con errores
+                  </span>
+                <% end %>
+              </div>
+
+              <div
+                class="processing-info"
+                style="margin-bottom: 2rem; background: #f8fafc; border: 1px solid #e2e8f0;"
+              >
+                <div class="info-row">
+                  <span class="info-label">Modo de Procesamiento:</span>
+                  <span class="info-value">{String.capitalize(@resultado[:modo])}</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Ruta del Reporte:</span>
+                  <span class="info-value code">{Path.basename(@resultado[:ruta_reporte])}</span>
+                </div>
+              </div>
+
+              <div class="metrics-summary">
+                <div class="metric-card">
+                  <div class="metric-label">Total Procesados</div>
+                  <div class="metric-value">{@resultado[:report_data].counts.total}</div>
+                </div>
+
+                <div
+                  class="metric-card"
+                  style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);"
+                >
+                  <div class="metric-label">Exitosos</div>
+                  <div class="metric-value">{@resultado[:report_data].counts.ok}</div>
+                </div>
+
+                <div
+                  class="metric-card"
+                  style={
+                    if @resultado[:report_data].counts.failed > 0,
+                      do: "background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);",
+                      else: "background: linear-gradient(135deg, #9ca3af 0%, #6b7280 100%);"
+                  }
+                >
+                  <div class="metric-label">Con Errores</div>
+                  <div class="metric-value">{@resultado[:report_data].counts.failed}</div>
+                </div>
+
+                <div class="metric-card">
+                  <div class="metric-label">Tiempo Total</div>
+                  <div class="metric-value">
+                    {Float.round(@resultado[:report_data].elapsed_seconds * 1000, 2)} ms
+                  </div>
+                </div>
+
+                <% tasa_exito =
+                  if @resultado[:report_data].counts.total > 0,
+                    do:
+                      @resultado[:report_data].counts.ok * 100.0 /
+                        @resultado[:report_data].counts.total,
+                    else: 0.0 %>
+                <div
+                  class="metric-card"
+                  style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);"
+                >
+                  <div class="metric-label">Tasa de Éxito</div>
+                  <div class="metric-value">{Float.round(tasa_exito, 1)}%</div>
+                </div>
+
+                <%= if @resultado[:report_data].counts.csv > 0 do %>
+                  <div
+                    class="metric-card"
+                    style="background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%);"
+                  >
+                    <div class="metric-label">Archivos CSV</div>
+                    <div class="metric-value">{@resultado[:report_data].counts.csv}</div>
+                  </div>
+                <% end %>
+
+                <%= if @resultado[:report_data].counts.json > 0 do %>
+                  <div
+                    class="metric-card"
+                    style="background: linear-gradient(135deg, #059669 0%, #047857 100%);"
+                  >
+                    <div class="metric-label">Archivos JSON</div>
+                    <div class="metric-value">{@resultado[:report_data].counts.json}</div>
+                  </div>
+                <% end %>
+
+                <%= if @resultado[:report_data].counts.log > 0 do %>
+                  <div
+                    class="metric-card"
+                    style="background: linear-gradient(135deg, #d97706 0%, #b45309 100%);"
+                  >
+                    <div class="metric-label">Archivos LOG</div>
+                    <div class="metric-value">{@resultado[:report_data].counts.log}</div>
+                  </div>
+                <% end %>
               </div>
             </div>
-            
-<!-- Tab Reporte Completo -->
+
+            <div id="tab-html" class="tab-content">
+              <%= if @resultado[:report_data].counts.csv > 0 do %>
+                <div
+                  class="summary-section"
+                  style="margin-bottom: 2rem; background: #eef2ff; border: 1px solid #c7d2fe;"
+                >
+                  <h3 style="border-bottom: 2px solid #a5b4fc; padding-bottom: 0.5rem; color: #3730a3;">
+                    Métricas de Archivos CSV
+                  </h3>
+
+                  <%= for file <- @resultado[:report_data].csv_files do %>
+                    <div
+                      class="processing-info"
+                      style="margin-top: 1rem; background: rgba(255,255,255,0.7);"
+                    >
+                      <h4 style="margin-top: 0; color: #4f46e5; font-family: monospace;">
+                        [Archivo: {Path.basename(file.path)}]
+                      </h4>
+
+                      <%= if file.status == :ok do %>
+                        <div style="display: flex; flex-direction: column;">
+                          <div class="info-row" style="border-bottom: 1px dashed #c7d2fe;">
+                            <span class="info-label">Ventas Totales:</span>
+                            <span class="info-value font-bold">
+                              ${Float.round(file.metrics.total_sales, 2)}
+                            </span>
+                          </div>
+                          <div class="info-row" style="border-bottom: 1px dashed #c7d2fe;">
+                            <span class="info-label">Productos Únicos:</span>
+                            <span class="info-value">{file.metrics.unique_products}</span>
+                          </div>
+                          <div class="info-row" style="border-bottom: 1px dashed #c7d2fe;">
+                            <span class="info-label">Mejor Producto:</span>
+                            <span class="info-value">
+                              {if file.metrics.top_product,
+                                do:
+                                  "#{file.metrics.top_product.name} (#{file.metrics.top_product.value} uds)",
+                                else: "N/A"}
+                            </span>
+                          </div>
+                          <div class="info-row" style="border-bottom: 1px dashed #c7d2fe;">
+                            <span class="info-label">Categoría Principal:</span>
+                            <span class="info-value">
+                              {if file.metrics.top_category,
+                                do:
+                                  "#{file.metrics.top_category.name} ($#{Float.round(file.metrics.top_category.value, 2)})",
+                                else: "N/A"}
+                            </span>
+                          </div>
+                          <div class="info-row">
+                            <span class="info-label">Descuento Promedio:</span>
+                            <span class="info-value">
+                              {Float.round(file.metrics.avg_discount_pct, 2)}%
+                            </span>
+                          </div>
+                        </div>
+                      <% else %>
+                        <div style="color: #dc2626; font-weight: 500; padding: 0.5rem; background: #fee2e2; border-radius: 4px;">
+                          Se encontraron errores (Ver pestaña 'Errores por Archivo')
+                        </div>
+                      <% end %>
+                    </div>
+                  <% end %>
+
+                  <div
+                    class="processing-info"
+                    style="margin-top: 1rem; background: #e0e7ff; border-left: 4px solid #4f46e5;"
+                  >
+                    <h4 style="margin-top: 0; color: #3730a3;">Totales Consolidados CSV</h4>
+                    <div style="display: flex; flex-direction: column;">
+                      <div class="info-row">
+                        <span class="info-label">Ventas Totales:</span>
+                        <span class="info-value font-bold">
+                          ${Float.round(@resultado[:report_data].csv_totals.total_sales, 2)}
+                        </span>
+                      </div>
+                      <div class="info-row">
+                        <span class="info-label">Productos Únicos Totales:</span>
+                        <span class="info-value">
+                          {@resultado[:report_data].csv_totals.unique_products}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+
+              <%= if @resultado[:report_data].counts.json > 0 do %>
+                <div
+                  class="summary-section"
+                  style="margin-bottom: 2rem; background: #ecfdf5; border: 1px solid #a7f3d0;"
+                >
+                  <h3 style="border-bottom: 2px solid #6ee7b7; padding-bottom: 0.5rem; color: #065f46;">
+                    Métricas de Archivos JSON
+                  </h3>
+
+                  <%= for file <- @resultado[:report_data].json_files do %>
+                    <div
+                      class="processing-info"
+                      style="margin-top: 1rem; background: rgba(255,255,255,0.7);"
+                    >
+                      <h4 style="margin-top: 0; color: #059669; font-family: monospace;">
+                        [Archivo: {Path.basename(file.path)}]
+                      </h4>
+
+                      <%= if file.status == :ok do %>
+                        <div style="display: flex; flex-direction: column;">
+                          <div class="info-row" style="border-bottom: 1px dashed #a7f3d0;">
+                            <span class="info-label">Usuarios Registrados:</span>
+                            <span class="info-value">{file.metrics.total_users}</span>
+                          </div>
+                          <div class="info-row" style="border-bottom: 1px dashed #a7f3d0;">
+                            <span class="info-label">Usuarios Activos:</span>
+                            <span class="info-value">{file.metrics.active_users}</span>
+                          </div>
+                          <div class="info-row" style="border-bottom: 1px dashed #a7f3d0;">
+                            <span class="info-label">Usuarios Inactivos:</span>
+                            <span class="info-value">{file.metrics.inactive_users}</span>
+                          </div>
+                          <div class="info-row" style="border-bottom: 1px dashed #a7f3d0;">
+                            <span class="info-label">Duración Promedio Sesión:</span>
+                            <span class="info-value">
+                              {Float.round(file.metrics.avg_session_seconds / 60.0, 2)} min
+                            </span>
+                          </div>
+                          <div class="info-row">
+                            <span class="info-label">Páginas Visitadas:</span>
+                            <span class="info-value">{file.metrics.total_pages}</span>
+                          </div>
+                        </div>
+                      <% else %>
+                        <div style="color: #dc2626; font-weight: 500; padding: 0.5rem; background: #fee2e2; border-radius: 4px;">
+                          Se encontraron errores (Ver pestaña 'Errores por Archivo')
+                        </div>
+                      <% end %>
+                    </div>
+                  <% end %>
+
+                  <div
+                    class="processing-info"
+                    style="margin-top: 1rem; background: #d1fae5; border-left: 4px solid #059669;"
+                  >
+                    <h4 style="margin-top: 0; color: #065f46;">Totales Consolidados JSON</h4>
+                    <div style="display: flex; flex-direction: column;">
+                      <div class="info-row">
+                        <span class="info-label">Usuarios Totales:</span>
+                        <span class="info-value font-bold">
+                          {@resultado[:report_data].json_totals.total_users}
+                        </span>
+                      </div>
+                      <div class="info-row">
+                        <span class="info-label">Activos:</span>
+                        <span class="info-value">
+                          {@resultado[:report_data].json_totals.active_users}
+                        </span>
+                      </div>
+                      <div class="info-row">
+                        <span class="info-label">Inactivos:</span>
+                        <span class="info-value">
+                          {@resultado[:report_data].json_totals.inactive_users}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+
+              <%= if @resultado[:report_data].counts.log > 0 do %>
+                <div
+                  class="summary-section"
+                  style="margin-bottom: 2rem; background: #fffbeb; border: 1px solid #fde68a;"
+                >
+                  <h3 style="border-bottom: 2px solid #fcd34d; padding-bottom: 0.5rem; color: #92400e;">
+                    Métricas de Archivos LOG
+                  </h3>
+
+                  <%= for file <- @resultado[:report_data].log_files do %>
+                    <div
+                      class="processing-info"
+                      style="margin-top: 1rem; background: rgba(255,255,255,0.7);"
+                    >
+                      <h4 style="margin-top: 0; color: #d97706; font-family: monospace;">
+                        [Archivo: {Path.basename(file.path)}]
+                      </h4>
+
+                      <%= if file.status == :ok do %>
+                        <div style="display: flex; flex-direction: column;">
+                          <div class="info-row" style="border-bottom: 1px dashed #fde68a;">
+                            <span class="info-label">Entradas Totales:</span>
+                            <span class="info-value font-bold">{file.metrics.total_entries}</span>
+                          </div>
+                          <div class="info-row">
+                            <span class="info-label">Componente con más errores:</span>
+                            <span class="info-value">
+                              {if file.metrics.top_error_component,
+                                do:
+                                  "#{file.metrics.top_error_component.name} (#{file.metrics.top_error_component.value})",
+                                else: "N/A"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div style="margin-top: 1rem; padding-top: 0.5rem; border-top: 1px solid #fde68a;">
+                          <strong style="color: #92400e; font-size: 0.875rem;">
+                            Errores más frecuentes:
+                          </strong>
+                          <ul style="margin-top: 0.5rem; font-size: 0.875rem; color: #4b5563;">
+                            <%= if length(file.metrics.top_error_messages) > 0 do %>
+                              <%= for {err, index} <- Enum.with_index(file.metrics.top_error_messages, 1) do %>
+                                <li>{index}. {err.message} ({err.count})</li>
+                              <% end %>
+                            <% else %>
+                              <li>Ninguno</li>
+                            <% end %>
+                          </ul>
+                        </div>
+                      <% else %>
+                        <div style="color: #dc2626; font-weight: 500; padding: 0.5rem; background: #fee2e2; border-radius: 4px;">
+                          Se encontraron errores (Ver pestaña 'Errores por Archivo')
+                        </div>
+                      <% end %>
+                    </div>
+                  <% end %>
+
+                  <div
+                    class="processing-info"
+                    style="margin-top: 1rem; background: #fef3c7; border-left: 4px solid #d97706;"
+                  >
+                    <h4 style="margin-top: 0; color: #92400e;">Totales Consolidados LOG</h4>
+                    <div class="info-row">
+                      <span class="info-label">Entradas Totales:</span>
+                      <span class="info-value font-bold">
+                        {@resultado[:report_data].log_totals.total_entries}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+
+            <%= if @resultado[:report_data].counts.failed > 0 do %>
+              <div id="tab-errores" class="tab-content">
+                <div
+                  class="summary-section"
+                  style="background: #fef2f2; border: 1px solid #fecaca;"
+                >
+                  <h3 style="color: #b91c1c; border-bottom: 2px solid #fca5a5; padding-bottom: 0.5rem; margin-top: 0;">
+                    Detalle de Errores en Archivos
+                  </h3>
+
+                  <%= for file <- @resultado[:report_data].csv_files ++ @resultado[:report_data].json_files ++ @resultado[:report_data].log_files, file.status != :ok do %>
+                    <div
+                      class="processing-info"
+                      style="margin-top: 1rem; background: white; border-left: 4px solid #ef4444; box-shadow: 0 1px 3px rgba(0,0,0,0.1);"
+                    >
+                      <h4 style="margin-top: 0; color: #b91c1c; font-family: monospace; display: flex; justify-content: space-between;">
+                        <span>[Archivo: {Path.basename(file.path)}]</span>
+                        <span
+                          class="status-badge"
+                          style="background: #fee2e2; color: #991b1b; padding: 0.25rem 0.5rem;"
+                        >
+                          {String.upcase(to_string(file.status))}
+                        </span>
+                      </h4>
+
+                      <ul style="color: #dc2626; font-size: 0.875rem; padding-left: 1.5rem; margin-bottom: 0; font-family: monospace;">
+                        <%= if length(file.errors) > 0 do %>
+                          <%= for error <- file.errors do %>
+                            <li style="margin-bottom: 0.25rem;">
+                              <%= if Map.get(error, :line) do %>
+                                <span style="font-weight: 600; color: #991b1b;">
+                                  Línea {Map.get(error, :line)}:
+                                </span>
+                              <% end %>
+                              {Map.get(error, :error, inspect(error))}
+                            </li>
+                          <% end %>
+                        <% else %>
+                          <% errores_criticos =
+                            Enum.filter(@resultado[:report_data].errors, fn e ->
+                              e.path == file.path
+                            end) %>
+                          <%= for error <- errores_criticos do %>
+                            <li style="margin-bottom: 0.25rem;">
+                              {Map.get(error, :error, inspect(error))}
+                            </li>
+                          <% end %>
+                          <%= if length(errores_criticos) == 0 do %>
+                            <li style="margin-bottom: 0.25rem;">
+                              Error crítico de procesamiento. Verifica el archivo log.
+                            </li>
+                          <% end %>
+                        <% end %>
+                      </ul>
+                    </div>
+                  <% end %>
+                </div>
+              </div>
+            <% end %>
+
             <div id="tab-completo" class="tab-content">
               <div class="report-viewer">
                 <div class="report-controls">
