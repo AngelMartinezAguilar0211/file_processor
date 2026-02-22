@@ -37,7 +37,7 @@ defmodule FileProcessorWeb.PageController do
 
       {:error, mensaje_error} when is_binary(mensaje_error) ->
         # Error con mensaje string: volver al formulario
-        IO.puts("❌ Error durante procesamiento: #{mensaje_error}")
+        IO.puts("Error durante procesamiento: #{mensaje_error}")
 
         conn
         |> put_flash(:error, mensaje_error)
@@ -45,7 +45,7 @@ defmodule FileProcessorWeb.PageController do
 
       {:error, errores} when is_list(errores) ->
         # Error con lista de errores: formatear y mostrar
-        IO.puts("❌ Múltiples errores durante procesamiento")
+        IO.puts("Múltiples errores durante procesamiento")
         IO.inspect(errores, label: "ERRORES")
 
         mensaje = formatear_errores(errores)
@@ -79,5 +79,11 @@ defmodule FileProcessorWeb.PageController do
         msg
       end
     end)
+  end
+
+  def historial(conn, _params) do
+    reportes = FileProcessor.History.list_reports()
+
+    render(conn, :historial, reportes: reportes)
   end
 end

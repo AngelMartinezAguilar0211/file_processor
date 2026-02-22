@@ -1,0 +1,83 @@
+<div class="main-container">
+  <div
+    class="section-header"
+    style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 1rem; margin-bottom: 2rem;"
+  >
+    <div>
+      <h1 style="margin: 0; color: #0f172a;">Historial de Procesamientos</h1>
+      <p style="margin: 0.5rem 0 0 0; color: #64748b;">
+        Registro de todas las ejecuciones guardadas en la base de datos.
+      </p>
+    </div>
+    <a
+      href="/"
+      style="background: #e2e8f0; color: #475569; padding: 0.5rem 1rem; text-decoration: none; border-radius: 6px; font-weight: 500;"
+    >
+      Volver al Inicio
+    </a>
+  </div>
+
+  <%= if Enum.empty?(@reportes) do %>
+    <div style="text-align: center; padding: 3rem; background: #f8fafc; border-radius: 8px; color: #64748b;">
+      <span style="font-size: 3rem;">📭</span>
+      <h2>Aún no hay reportes</h2>
+      <p>Procesa algunos archivos para ver tu historial aquí.</p>
+    </div>
+  <% else %>
+    <div style="background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;">
+      <table style="width: 100%; border-collapse: collapse; text-align: left;">
+        <thead>
+          <tr style="background: #f1f5f9; color: #475569; font-size: 0.875rem; text-transform: uppercase;">
+            <th style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">Fecha y Hora</th>
+            <th style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">Modo</th>
+            <th style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">Archivos</th>
+            <th style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">Tasa de Éxito</th>
+            <th style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">Tiempo (ms)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <%= for reporte <- @reportes do %>
+            <tr style="border-bottom: 1px solid #e2e8f0; transition: background-color 0.2s;">
+              <td style="padding: 1rem; color: #334155; font-weight: 500;">
+                {Calendar.strftime(reporte.inserted_at, "%Y-%m-%d %H:%M:%S")}
+              </td>
+
+              <td style="padding: 1rem;">
+                <%= if reporte.mode == "benchmark" do %>
+                  <span style="background: #e0e7ff; color: #4338ca; padding: 0.25rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600;">
+                    BENCHMARK
+                  </span>
+                <% else %>
+                  <span style="background: #dcfce3; color: #166534; padding: 0.25rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600;">
+                    {String.upcase(reporte.mode)}
+                  </span>
+                <% end %>
+              </td>
+
+              <td style="padding: 1rem; color: #475569;">
+                {reporte.total_files} procesados
+              </td>
+
+              <td style="padding: 1rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  <% color =
+                    if reporte.success_rate >= 80,
+                      do: "#16a34a",
+                      else: if(reporte.success_rate >= 50, do: "#ca8a04", else: "#dc2626") %>
+
+                  <span style={"font-weight: 600; color: #{color};"}>
+                    {Float.round(reporte.success_rate, 1)}%
+                  </span>
+                </div>
+              </td>
+
+              <td style="padding: 1rem; color: #64748b; font-family: monospace;">
+                {Float.round(reporte.execution_time_ms, 2)} ms
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

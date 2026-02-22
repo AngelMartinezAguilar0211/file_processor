@@ -20,6 +20,8 @@ defmodule FileProcessorWeb.Router do
     get "/", PageController, :home
 
     post "/procesar", PageController, :procesar
+
+    get "/historial", PageController, :historial
   end
 
   # Other scopes may use custom stacks.

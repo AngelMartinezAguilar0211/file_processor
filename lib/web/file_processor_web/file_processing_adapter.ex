@@ -384,13 +384,32 @@ defmodule FileProcessorWeb.FileProcessingAdapter do
   # Ejecuta el benchmark
   defp ejecutar_benchmark(input_path, opciones) do
     try do
+      total_archivos =
+        cond do
+          is_list(input_path) ->
+            length(input_path)
+
+          is_binary(input_path) and File.dir?(input_path) ->
+            case File.ls(input_path) do
+              {:ok, archivos} -> length(archivos)
+              {:error, _} -> 0
+            end
+
+          is_binary(input_path) and File.regular?(input_path) ->
+            1
+
+          true ->
+            0
+        end
+
       {:ok, resultados} = API.FileProcessor.benchmark(input_path, opciones)
 
       {:ok,
        %{
          benchmark: true,
          resultados: resultados,
-         exito: true
+         exito: true,
+         total_files: total_archivos
        }}
     rescue
       e ->
@@ -457,7 +476,7 @@ defmodule FileProcessorWeb.FileProcessingAdapter do
   defp guardar_en_historial({:ok, %{benchmark: true} = res}) do
     attrs = %{
       mode: "benchmark",
-      total_files: 2,
+      total_files: res.total_files,
       success_rate: 100.0,
       execution_time_ms: (res.resultados.sequential_time + res.resultados.parallel_time) * 1000,
       data: res.resultados
