@@ -515,7 +515,13 @@
                     💾 Descargar Reporte
                   </a>
                 </div>
-                <pre class="report-content" id="reporte-completo"><%= @resultado[:contenido] %></pre>
+                <pre class="report-content" id="reporte-completo">
+                <%= if @resultado[:texto_reporte] do %>
+                    <%= @resultado[:texto_reporte] %>
+                <% else %>
+                    <%= @resultado[:contenido] %>
+                <% end %>
+                </pre>
               </div>
             </div>
           </div>

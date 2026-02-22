@@ -12,4 +12,6 @@ defmodule FileProcessor.History do
   def list_reports do
     Repo.all(from r in Report, order_by: [desc: r.inserted_at])
   end
+
+  def get_report!(id), do: Repo.get!(Report, id)
 end

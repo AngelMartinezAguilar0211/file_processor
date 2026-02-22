@@ -86,4 +86,65 @@ defmodule FileProcessorWeb.PageController do
 
     render(conn, :historial, reportes: reportes)
   end
+
+  def detalle_historial(conn, %{"id" => id}) do
+    reporte = FileProcessor.History.get_report!(id)
+    datos_atomizados = atomize_keys(reporte.data)
+
+    texto_reporte = datos_atomizados[:texto_completo] || "Contenido no encontrado"
+
+    resultado_reconstruido =
+      if reporte.mode == "benchmark" do
+        %{
+          benchmark: true,
+          resultados: datos_atomizados,
+          exito: true,
+          input_path: ["Historial"]
+        }
+      else
+        %{
+          benchmark: false,
+          report_data: datos_atomizados,
+          exito: true,
+          modo: reporte.mode,
+          input_path: ["Historial"],
+          ruta_reporte: "reporte_#{id}.txt",
+          texto_reporte: texto_reporte
+        }
+      end
+
+    render(conn, :resultado, resultado: resultado_reconstruido)
+  end
+
+  # 1. Para Mapas: atomizamos llaves y procesamos valores
+  defp atomize_keys(map) when is_map(map) do
+    Map.new(map, fn {k, v} ->
+      {maybe_atom(k), atomize_keys(v)}
+    end)
+  end
+
+  # 2. Para Listas: procesamos cada elemento
+  defp atomize_keys(list) when is_list(list) do
+    Enum.map(list, &atomize_keys/1)
+  end
+
+  # 3. Para Valores de Texto: intentamos convertirlos a átomos (ej: "ok" -> :ok)
+  defp atomize_keys(val) when is_binary(val) do
+    maybe_atom(val)
+  end
+
+  # Caso base para números y otros tipos
+  defp atomize_keys(other), do: other
+
+  # Función de apoyo para no repetir código
+  defp maybe_atom(string) when is_binary(string) do
+    try do
+      String.to_existing_atom(string)
+    rescue
+      # Si es una ruta o mensaje largo, se queda como texto
+      ArgumentError -> string
+    end
+  end
+
+  defp maybe_atom(other), do: other
 end

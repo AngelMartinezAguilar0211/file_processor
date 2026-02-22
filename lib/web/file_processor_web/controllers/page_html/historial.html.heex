@@ -33,6 +33,9 @@
             <th style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">Archivos</th>
             <th style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">Tasa de Éxito</th>
             <th style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">Tiempo (ms)</th>
+            <th style="padding: 1rem; border-bottom: 1px solid #e2e8f0; text-align: center;">
+              Acción
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -73,6 +76,14 @@
 
               <td style="padding: 1rem; color: #64748b; font-family: monospace;">
                 {Float.round(reporte.execution_time_ms, 2)} ms
+              </td>
+              <td style="padding: 1rem; text-align: center;">
+                <a
+                  href={"/historial/#{reporte.id}"}
+                  style="background: #3b82f6; color: white; padding: 0.5rem 1rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; transition: background 0.2s;"
+                >
+                  Ver Detalles
+                </a>
               </td>
             </tr>
           <% end %>

@@ -487,11 +487,20 @@ defmodule FileProcessorWeb.FileProcessingAdapter do
   end
 
   defp guardar_en_historial({:ok, res}) do
+    contenido_texto =
+      if Map.has_key?(res, :ruta_reporte) and File.exists?(res.ruta_reporte) do
+        File.read!(res.ruta_reporte)
+      else
+        "No hay reporte de texto disponible."
+      end
+
+    report_data_con_texto = Map.put(res.report_data, :texto_completo, contenido_texto)
+
+    data_limpia = limpiar_para_json(report_data_con_texto)
+
     total = res.report_data.counts.total
     exitosos = res.report_data.counts.ok
     tasa = if total > 0, do: exitosos * 100.0 / total, else: 0.0
-
-    data_limpia = limpiar_para_json(res.report_data)
 
     attrs = %{
       mode: res.modo,
