@@ -503,18 +503,6 @@
 
             <div id="tab-completo" class="tab-content">
               <div class="report-viewer">
-                <div class="report-controls">
-                  <button onclick="copiarReporte()" class="btn-secondary">
-                    📋 Copiar Reporte
-                  </button>
-                  <a
-                    href={"/" <> String.replace(@resultado[:ruta_reporte], "priv/static/", "")}
-                    download
-                    class="btn-secondary"
-                  >
-                    💾 Descargar Reporte
-                  </a>
-                </div>
                 <pre class="report-content" id="reporte-completo">
                 <%= if @resultado[:texto_reporte] do %>
                     <%= @resultado[:texto_reporte] %>
@@ -552,26 +540,6 @@
 
           // Activar el botón correspondiente
           event.target.classList.add('active');
-      }
-
-      // Función para copiar el reporte al portapapeles
-      function copiarReporte() {
-          const reporte = document.getElementById('reporte-completo').textContent;
-
-          navigator.clipboard.writeText(reporte).then(() => {
-              // Mostrar feedback visual
-              const boton = event.target;
-              const textoOriginal = boton.textContent;
-              boton.textContent = '✓ Copiado!';
-              boton.classList.add('success');
-
-              setTimeout(() => {
-                  boton.textContent = textoOriginal;
-                  boton.classList.remove('success');
-              }, 2000);
-          }).catch(err => {
-              alert('Error al copiar: ' + err);
-          });
       }
     </script>
 
