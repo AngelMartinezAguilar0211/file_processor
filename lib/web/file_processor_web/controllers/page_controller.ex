@@ -92,6 +92,34 @@ defmodule FileProcessorWeb.PageController do
     datos_atomizados = atomize_keys(reporte.data)
 
     texto_reporte = datos_atomizados[:texto_completo] || "Contenido no encontrado"
+    nombre_guardado = datos_atomizados[:nombre_reporte_original]
+
+    nombre_archivo =
+      cond do
+        is_binary(nombre_guardado) ->
+          nombre_guardado
+
+        not Enum.empty?(datos_atomizados[:csv_files] || []) ->
+          carpeta =
+            List.first(datos_atomizados[:csv_files]).path |> Path.dirname() |> Path.basename()
+
+          "reporte_#{carpeta}.txt"
+
+        not Enum.empty?(datos_atomizados[:json_files] || []) ->
+          carpeta =
+            List.first(datos_atomizados[:json_files]).path |> Path.dirname() |> Path.basename()
+
+          "reporte_#{carpeta}.txt"
+
+        not Enum.empty?(datos_atomizados[:log_files] || []) ->
+          carpeta =
+            List.first(datos_atomizados[:log_files]).path |> Path.dirname() |> Path.basename()
+
+          "reporte_#{carpeta}.txt"
+
+        true ->
+          "reporte_#{reporte.inserted_at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix()}.txt"
+      end
 
     resultado_reconstruido =
       if reporte.mode == "benchmark" do
@@ -107,8 +135,8 @@ defmodule FileProcessorWeb.PageController do
           report_data: datos_atomizados,
           exito: true,
           modo: reporte.mode,
-          input_path: ["Historial"],
-          ruta_reporte: "reporte_#{id}.txt",
+          input_path: ["Recuperado del Historial"],
+          ruta_reporte: nombre_archivo,
           texto_reporte: texto_reporte
         }
       end

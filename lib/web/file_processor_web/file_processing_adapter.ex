@@ -494,7 +494,17 @@ defmodule FileProcessorWeb.FileProcessingAdapter do
         "No hay reporte de texto disponible."
       end
 
-    report_data_con_texto = Map.put(res.report_data, :texto_completo, contenido_texto)
+    nombre_archivo =
+      if Map.has_key?(res, :ruta_reporte) and res.ruta_reporte do
+        Path.basename(res.ruta_reporte)
+      else
+        nil
+      end
+
+    report_data_con_texto =
+      res.report_data
+      |> Map.put(:texto_completo, contenido_texto)
+      |> Map.put(:nombre_reporte_original, nombre_archivo)
 
     data_limpia = limpiar_para_json(report_data_con_texto)
 
