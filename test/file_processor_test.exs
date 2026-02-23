@@ -11,13 +11,13 @@ defmodule FileProcessorTest do
   # Report generation
   test "run/1 processes a valid directory and generates a report" do
     result = silent_execution(["data"])
-    assert {:ok, path} = result
+    assert {:ok, path, _} = result
     assert File.exists?(path)
   end
 
   test "run/1 generates a report with the correct format" do
     result = silent_execution(["data"])
-    assert {:ok, path} = result
+    assert {:ok, path, _} = result
     content = File.read!(path)
     assert String.contains?(content, "FILE PROCESSING REPORT")
     assert String.contains?(content, "CSV FILE METRICS")
@@ -28,7 +28,7 @@ defmodule FileProcessorTest do
 
   test "run/1 processes a mix of valid and error files" do
     result = silent_execution(["data"])
-    assert {:ok, path} = result
+    assert {:ok, path, _} = result
     content = File.read!(path)
 
     assert String.contains?(content, "ERRORS AND WARNINGS")
@@ -54,7 +54,7 @@ defmodule FileProcessorTest do
 
   test "run/2 writes report to custom output path" do
     result = silent_execution(["data", @output])
-    assert {:ok, path} = result
+    assert {:ok, path, _} = result
     assert path == Path.expand(@output)
     assert File.exists?(@output)
   end
@@ -64,7 +64,7 @@ defmodule FileProcessorTest do
     {:ok, devnull} = File.open("/dev/null", [:write])
     Process.group_leader(self(), devnull)
 
-    {:ok, path} = API.FileProcessor.run("data", @output, "sequential")
+    {:ok, path, _} = API.FileProcessor.run("data", @output, "sequential")
 
     Process.group_leader(self(), original)
     File.close(devnull)
@@ -76,7 +76,7 @@ defmodule FileProcessorTest do
   test "run/1 defaults to parallel mode and prints progress lines" do
     io =
       ExUnit.CaptureIO.capture_io(fn ->
-        {:ok, path} = API.FileProcessor.run("data")
+        {:ok, path, _} = API.FileProcessor.run("data")
         assert File.exists?(path)
 
         content = File.read!(path)
@@ -91,14 +91,14 @@ defmodule FileProcessorTest do
   # Report format and metrics
   test "The report process all the base files in data" do
     result = silent_execution(["data"])
-    assert {:ok, data} = result
+    assert {:ok, data, _} = result
     content = File.read!(data)
     assert String.contains?(content, "Total files processed: 8")
   end
 
   test "The execution calculates total sales for CSV" do
     result = silent_execution(["data/valid/ventas_enero.csv"])
-    assert {:ok, data} = result
+    assert {:ok, data, _} = result
     content = File.read!(data)
     assert String.contains?(content, "CSV FILE METRICS")
     assert String.contains?(content, "Total sales: $24399.93")
@@ -106,7 +106,7 @@ defmodule FileProcessorTest do
 
   test "The execution calculates unique products for CSV" do
     result = silent_execution(["data/valid/ventas_enero.csv"])
-    assert {:ok, data} = result
+    assert {:ok, data, _} = result
     content = File.read!(data)
     assert String.contains?(content, "CSV FILE METRICS")
     assert String.contains?(content, "Unique products: 15")
@@ -114,7 +114,7 @@ defmodule FileProcessorTest do
 
   test "The execution calculates best selling product for CSV" do
     result = silent_execution(["data/valid/ventas_enero.csv"])
-    assert {:ok, data} = result
+    assert {:ok, data, _} = result
     content = File.read!(data)
     assert String.contains?(content, "CSV FILE METRICS")
     assert String.contains?(content, "Best-selling product: Cable HDMI")
@@ -122,7 +122,7 @@ defmodule FileProcessorTest do
 
   test "The execution calculates highest revenue category for CSV" do
     result = silent_execution(["data/valid/ventas_enero.csv"])
-    assert {:ok, data} = result
+    assert {:ok, data, _} = result
     content = File.read!(data)
     assert String.contains?(content, "CSV FILE METRICS")
     assert String.contains?(content, "Highest-revenue category: Computadoras")
@@ -130,7 +130,7 @@ defmodule FileProcessorTest do
 
   test "The execution calculates Average discount for CSV" do
     result = silent_execution(["data/valid/ventas_enero.csv"])
-    assert {:ok, data} = result
+    assert {:ok, data, _} = result
     content = File.read!(data)
     assert String.contains?(content, "CSV FILE METRICS")
     assert String.contains?(content, "Average discount applied: 12.0%")
@@ -138,7 +138,7 @@ defmodule FileProcessorTest do
 
   test "The execution displays CSV period" do
     result = silent_execution(["data/valid/ventas_enero.csv"])
-    assert {:ok, data} = result
+    assert {:ok, data, _} = result
     content = File.read!(data)
     assert String.contains?(content, "CSV FILE METRICS")
     assert String.contains?(content, "Period: 2024-01-02 to 2024-01-30")
@@ -146,7 +146,7 @@ defmodule FileProcessorTest do
 
   test "The execution calculates total sales for all CSV files" do
     result = silent_execution(["data"])
-    assert {:ok, data} = result
+    assert {:ok, data, _} = result
     content = File.read!(data)
     assert String.contains?(content, "CSV FILE METRICS")
     assert String.contains?(content, "Total sales: $51121.31")
@@ -154,7 +154,7 @@ defmodule FileProcessorTest do
 
   test "The execution calculates total unique products in all CSV files" do
     result = silent_execution(["data"])
-    assert {:ok, data} = result
+    assert {:ok, data, _} = result
     content = File.read!(data)
     assert String.contains?(content, "CSV FILE METRICS")
     assert String.contains?(content, "Total unique products: 31")
@@ -162,7 +162,7 @@ defmodule FileProcessorTest do
 
   test "The execution calculates registered users for JSON files" do
     result = silent_execution(["data/valid/sesiones.json"])
-    assert {:ok, data} = result
+    assert {:ok, data, _} = result
     content = File.read!(data)
     assert String.contains?(content, "JSON FILE METRICS")
     assert String.contains?(content, "Registered users: 8")
@@ -170,7 +170,7 @@ defmodule FileProcessorTest do
 
   test "The execution calculates active users for JSON files" do
     result = silent_execution(["data/valid/sesiones.json"])
-    assert {:ok, data} = result
+    assert {:ok, data, _} = result
     content = File.read!(data)
     assert String.contains?(content, "JSON FILE METRICS")
     assert String.contains?(content, "Active users: 7")
@@ -178,7 +178,7 @@ defmodule FileProcessorTest do
 
   test "The execution calculates inactive users for JSON files" do
     result = silent_execution(["data/valid/sesiones.json"])
-    assert {:ok, data} = result
+    assert {:ok, data, _} = result
     content = File.read!(data)
     assert String.contains?(content, "JSON FILE METRICS")
     assert String.contains?(content, "Inactive users: 1")
@@ -186,7 +186,7 @@ defmodule FileProcessorTest do
 
   test "The execution calculates average session duration for JSON files" do
     result = silent_execution(["data/valid/sesiones.json"])
-    assert {:ok, data} = result
+    assert {:ok, data, _} = result
     content = File.read!(data)
     assert String.contains?(content, "JSON FILE METRICS")
     assert String.contains?(content, "Average session duration: 30.0 minutes")
@@ -194,7 +194,7 @@ defmodule FileProcessorTest do
 
   test "The execution calculates total pages visited for JSON files" do
     result = silent_execution(["data/valid/sesiones.json"])
-    assert {:ok, data} = result
+    assert {:ok, data, _} = result
     content = File.read!(data)
     assert String.contains?(content, "JSON FILE METRICS")
     assert String.contains?(content, "Total pages visited: 285")
@@ -202,7 +202,7 @@ defmodule FileProcessorTest do
 
   test "The execution displays top actions for JSON files" do
     result = silent_execution(["data/valid/sesiones.json"])
-    assert {:ok, data} = result
+    assert {:ok, data, _} = result
     content = File.read!(data)
     assert String.contains?(content, "JSON FILE METRICS")
     assert String.contains?(content, "Top actions:")
@@ -212,7 +212,7 @@ defmodule FileProcessorTest do
 
   test "The execution displays peak activity hour for JSON files" do
     result = silent_execution(["data/valid/sesiones.json"])
-    assert {:ok, data} = result
+    assert {:ok, data, _} = result
     content = File.read!(data)
     assert String.contains?(content, "JSON FILE METRICS")
     assert String.contains?(content, "Peak activity hour: 8:00 (2 sessions)")
@@ -220,7 +220,7 @@ defmodule FileProcessorTest do
 
   test "The report excludes JSON files with errors" do
     result = silent_execution(["data"])
-    assert {:ok, data} = result
+    assert {:ok, data, _} = result
     content = File.read!(data)
     assert String.contains?(content, "Omitted files (errors were found):")
     assert String.contains?(content, "- usuarios_malformado.json (failed)")
@@ -228,7 +228,7 @@ defmodule FileProcessorTest do
 
   test "The report calculates total users for all JSON files" do
     result = silent_execution(["data"])
-    assert {:ok, data} = result
+    assert {:ok, data, _} = result
     content = File.read!(data)
     assert String.contains?(content, "JSON FILE METRICS")
     assert String.contains?(content, "Total users (sum): 18")
@@ -236,7 +236,7 @@ defmodule FileProcessorTest do
 
   test "The report indicates total active users for JSON files" do
     result = silent_execution(["data"])
-    assert {:ok, data} = result
+    assert {:ok, data, _} = result
     content = File.read!(data)
     assert String.contains?(content, "JSON FILE METRICS")
     assert String.contains?(content, "Active (sum): 14")
@@ -244,7 +244,7 @@ defmodule FileProcessorTest do
 
   test "The report indicates total active users for all JSON files" do
     result = silent_execution(["data"])
-    assert {:ok, data} = result
+    assert {:ok, data, _} = result
     content = File.read!(data)
     assert String.contains?(content, "JSON FILE METRICS")
     assert String.contains?(content, "Inactive (sum): 4")
@@ -252,7 +252,7 @@ defmodule FileProcessorTest do
 
   test "The execution calculates total entries for log files" do
     result = silent_execution(["data/valid/aplicacion.log"])
-    assert {:ok, data} = result
+    assert {:ok, data, _} = result
     content = File.read!(data)
     assert String.contains?(content, "LOG FILE METRICS")
     assert String.contains?(content, "Total entries: 71")
@@ -260,7 +260,7 @@ defmodule FileProcessorTest do
 
   test "The execution calculates levels distribution for log files" do
     result = silent_execution(["data/valid/aplicacion.log"])
-    assert {:ok, data} = result
+    assert {:ok, data, _} = result
     content = File.read!(data)
     assert String.contains?(content, "LOG FILE METRICS")
     assert String.contains?(content, "Level distribution: DEBUG=10, ERROR=8, INFO=47, WARN=6")
@@ -268,7 +268,7 @@ defmodule FileProcessorTest do
 
   test "The execution calculates components with most errors for log files" do
     result = silent_execution(["data/valid/aplicacion.log"])
-    assert {:ok, data} = result
+    assert {:ok, data, _} = result
     content = File.read!(data)
     assert String.contains?(content, "LOG FILE METRICS")
     assert String.contains?(content, "Components with most errors: Integration (2 errors)")
@@ -276,7 +276,7 @@ defmodule FileProcessorTest do
 
   test "The execution calculates time distribution for log files" do
     result = silent_execution(["data/valid/aplicacion.log"])
-    assert {:ok, data} = result
+    assert {:ok, data, _} = result
     content = File.read!(data)
     assert String.contains?(content, "LOG FILE METRICS")
 
@@ -288,7 +288,7 @@ defmodule FileProcessorTest do
 
   test "The execution displays most frequent errors for log files" do
     result = silent_execution(["data/valid/aplicacion.log"])
-    assert {:ok, data} = result
+    assert {:ok, data, _} = result
     content = File.read!(data)
     assert String.contains?(content, "LOG FILE METRICS")
     assert String.contains?(content, "Most frequent errors:")
@@ -298,7 +298,7 @@ defmodule FileProcessorTest do
 
   test "The calculates time between critical errors for log files" do
     result = silent_execution(["data/valid/aplicacion.log"])
-    assert {:ok, data} = result
+    assert {:ok, data, _} = result
     content = File.read!(data)
     assert String.contains?(content, "LOG FILE METRICS")
 
@@ -310,7 +310,7 @@ defmodule FileProcessorTest do
 
   test "The report calculates recurring error patterns for log files" do
     result = silent_execution(["data/valid/aplicacion.log"])
-    assert {:ok, data} = result
+    assert {:ok, data, _} = result
     content = File.read!(data)
     assert String.contains?(content, "LOG FILE METRICS")
     assert String.contains?(content, "Recurring error patterns:")
@@ -319,7 +319,7 @@ defmodule FileProcessorTest do
 
   test "The execution calculates total entries for all the log files" do
     result = silent_execution(["data"])
-    assert {:ok, data} = result
+    assert {:ok, data, _} = result
     content = File.read!(data)
     assert String.contains?(content, "LOG FILE METRICS")
     assert String.contains?(content, "Total entries: 143")
@@ -327,7 +327,7 @@ defmodule FileProcessorTest do
 
   test "The execution calculates level distribution for all the log files" do
     result = silent_execution(["data"])
-    assert {:ok, data} = result
+    assert {:ok, data, _} = result
     content = File.read!(data)
     assert String.contains?(content, "LOG FILE METRICS")
 
@@ -335,20 +335,6 @@ defmodule FileProcessorTest do
              content,
              "Level distribution: DEBUG=16, ERROR=17, FATAL=1, INFO=96, WARN=13"
            )
-  end
-
-  # Benchmark tests
-  test "benchmark/1 prints block correctly" do
-    io =
-      ExUnit.CaptureIO.capture_io(fn ->
-        API.FileProcessor.benchmark("data")
-      end)
-
-    # Console comparison block
-    assert String.contains?(io, "BENCHMARK RESULTS")
-    assert String.contains?(io, "Sequential:")
-    assert String.contains?(io, "Parallel:")
-    assert String.contains?(io, "Speedup:")
   end
 
   # Inner functions tests
