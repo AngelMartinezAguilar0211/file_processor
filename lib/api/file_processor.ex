@@ -42,7 +42,7 @@ defmodule API.FileProcessor do
 
   ## Examples
 
-      iex> {:ok, path} = API.FileProcessor.run("data", "reporte_final.txt", "sequential")
+      iex> {:ok, path, _} = API.FileProcessor.run("data", "reporte_final.txt", "sequential")
       iex> is_binary(path)
       true
 

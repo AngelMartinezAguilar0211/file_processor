@@ -23,13 +23,13 @@ defmodule FileProcessorWeb.PageController do
   """
   def procesar(conn, params) do
     # Loguear los parámetros recibidos para debugging
-    IO.inspect(params, label: "PARAMS RECIBIDOS")
+    # IO.inspect(params, label: "PARAMS RECIBIDOS")
 
     # Procesar el archivo usando el adaptador
     case FileProcessorWeb.FileProcessingAdapter.procesar_desde_web(params) do
       {:ok, resultado} ->
         # Éxito: renderizar página de resultados
-        IO.puts("Procesamiento exitoso, renderizando resultados...")
+        # IO.puts("Procesamiento exitoso, renderizando resultados...")
 
         conn
         |> put_flash(:info, "Procesamiento completado exitosamente")
@@ -37,7 +37,7 @@ defmodule FileProcessorWeb.PageController do
 
       {:error, mensaje_error} ->
         # Atrapa cualquier error y lo muestra
-        IO.puts("Error durante procesamiento: #{mensaje_error}")
+        # IO.puts("Error durante procesamiento: #{mensaje_error}")
 
         conn
         |> put_flash(:error, mensaje_error)
