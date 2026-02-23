@@ -35,50 +35,14 @@ defmodule FileProcessorWeb.PageController do
         |> put_flash(:info, "Procesamiento completado exitosamente")
         |> render(:resultado, resultado: resultado)
 
-      {:error, mensaje_error} when is_binary(mensaje_error) ->
-        # Error con mensaje string: volver al formulario
+      {:error, mensaje_error} ->
+        # Atrapa cualquier error y lo muestra
         IO.puts("Error durante procesamiento: #{mensaje_error}")
 
         conn
         |> put_flash(:error, mensaje_error)
         |> redirect(to: ~p"/")
-
-      {:error, errores} when is_list(errores) ->
-        # Error con lista de errores: formatear y mostrar
-        IO.puts("Múltiples errores durante procesamiento")
-        IO.inspect(errores, label: "ERRORES")
-
-        mensaje = formatear_errores(errores)
-
-        conn
-        |> put_flash(:error, mensaje)
-        |> redirect(to: ~p"/")
     end
-  end
-
-  # Formatea una lista de errores en un mensaje legible
-  defp formatear_errores(errores) when is_list(errores) do
-    errores
-    # Mostrar máximo 5 errores
-    |> Enum.take(5)
-    |> Enum.map(fn
-      %{path: path, reason: reason, details: details} ->
-        "• #{path}: #{reason} - #{inspect(details)}"
-
-      %{path: path, error: error} ->
-        "• #{path}: #{error}"
-
-      otro ->
-        "• #{inspect(otro)}"
-    end)
-    |> Enum.join("\n")
-    |> then(fn msg ->
-      if length(errores) > 5 do
-        msg <> "\n... y #{length(errores) - 5} errores más"
-      else
-        msg
-      end
-    end)
   end
 
   def historial(conn, _params) do
