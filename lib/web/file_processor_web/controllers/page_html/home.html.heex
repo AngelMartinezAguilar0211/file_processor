@@ -162,5 +162,24 @@
           fileList.innerHTML = html;
       });
     </script>
+    <script>
+      document.addEventListener("DOMContentLoaded", function() {
+        const benchmarkToggle = document.querySelector('input[name="benchmark_active"]');
+        const opcionesConcurrencia = document.querySelector('.processing-cards');
+        const labelConcurrencia = document.querySelector('.input-label-small');
+
+        if (benchmarkToggle && opcionesConcurrencia) {
+          benchmarkToggle.addEventListener("change", function() {
+            if (this.checked) {
+              opcionesConcurrencia.style.display = "none";
+              if (labelConcurrencia) labelConcurrencia.style.display = "none";
+            } else {
+              opcionesConcurrencia.style.display = "flex";
+              if (labelConcurrencia) labelConcurrencia.style.display = "block";
+            }
+          });
+        }
+      });
+    </script>
   </body>
 </html>
