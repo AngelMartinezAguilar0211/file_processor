@@ -45,4 +45,6 @@ npm-debug.log
 
 /data/
 
-/priv/
+/priv/static/reports/
+
+/priv/static/uploads/
