@@ -86,18 +86,23 @@
                 <input
                   type="radio"
                   name="processing_type"
-                  value="sequential"
-                  id="sequential"
+                  value="parallel"
+                  id="parallel"
                   checked
                 />
-                <label for="sequential">
-                  <span class="radio-dot"></span> Secuencial
+                <label for="parallel">
+                  <span class="radio-dot"></span> Paralelo
                 </label>
               </div>
               <div class="card">
-                <input type="radio" name="processing_type" value="parallel" id="parallel" />
-                <label for="parallel">
-                  <span class="radio-dot"></span> Paralelo
+                <input
+                  type="radio"
+                  name="processing_type"
+                  value="sequential"
+                  id="sequential"
+                />
+                <label for="sequential">
+                  <span class="radio-dot"></span> Secuencial
                 </label>
               </div>
             </div>
@@ -162,20 +167,64 @@
       });
     </script>
     <script>
-      // Controls visibility of concurrency options based on benchmark toggle state
+      // Initializes UI components and handles visibility of processing options
       document.addEventListener("DOMContentLoaded", function() {
         const benchmarkToggle = document.querySelector('input[name="benchmark_active"]');
-        const concurrencyOptions = document.querySelector('.processing-cards');
-        const concurrencyLabel = document.querySelector('.input-label-small');
+        const processingCards = document.querySelector('.processing-cards');
+        const processingLabel = document.querySelector('.input-label-small');
 
-        if (benchmarkToggle && concurrencyOptions) {
+        const detailsGrid = document.querySelector('.details-grid');
+        const detailsLabel = detailsGrid ? detailsGrid.previousElementSibling : null;
+
+        const processingRadios = document.querySelectorAll('input[name="processing_type"]');
+        const parallelInputs = [
+          document.querySelector('input[name="retry_count"]'),
+          document.querySelector('input[name="max_workers"]'),
+          document.querySelector('input[name="timeout"]')
+        ];
+
+        // Controls visibility and clears values for specific processing modes
+        function toggleParallelInputs(mode) {
+          const isSequential = mode === 'sequential';
+          const displayStyle = isSequential ? 'none' : '';
+
+          parallelInputs.forEach(input => {
+            if (input) {
+              input.style.display = displayStyle;
+
+              if (isSequential) {
+                input.value = '';
+              }
+            }
+          });
+        }
+
+        if (processingRadios.length > 0) {
+          processingRadios.forEach(radio => {
+            radio.addEventListener("change", function() {
+              toggleParallelInputs(this.value);
+            });
+          });
+
+          // Initializes input visibility based on default selected radio
+          const defaultRadio = document.querySelector('input[name="processing_type"]:checked');
+          if (defaultRadio) {
+            toggleParallelInputs(defaultRadio.value);
+          }
+        }
+
+        if (benchmarkToggle) {
           benchmarkToggle.addEventListener("change", function() {
             if (this.checked) {
-              concurrencyOptions.style.display = "none";
-              if (concurrencyLabel) concurrencyLabel.style.display = "none";
+              if (processingCards) processingCards.style.display = "none";
+              if (processingLabel) processingLabel.style.display = "none";
+              if (detailsGrid) detailsGrid.style.display = "none";
+              if (detailsLabel) detailsLabel.style.display = "none";
             } else {
-              concurrencyOptions.style.display = "flex";
-              if (concurrencyLabel) concurrencyLabel.style.display = "block";
+              if (processingCards) processingCards.style.display = "flex";
+              if (processingLabel) processingLabel.style.display = "";
+              if (detailsGrid) detailsGrid.style.display = "";
+              if (detailsLabel) detailsLabel.style.display = "";
             }
           });
         }
