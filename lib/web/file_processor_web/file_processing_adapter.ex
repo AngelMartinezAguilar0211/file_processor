@@ -1,254 +1,213 @@
 defmodule FileProcessorWeb.FileProcessingAdapter do
   @moduledoc """
-  Adaptador que conecta la aplicación web Phoenix con el sistema de procesamiento
-  de archivos. Maneja archivos subidos (Plug.Upload) y rutas de archivos locales.
+  Adapter that connects the Phoenix web application with the file processing system.
+  Handles uploaded files (Plug.Upload) and local file paths.
   """
 
   @doc """
-  Procesa archivos subidos a través del formulario web.
+  Processes files uploaded through the web form.
 
-  Acepta:
-  - archivo_subido: %Plug.Upload{} - archivo subido por el usuario
-  - ruta_archivo: String - ruta local de archivo
-  - opciones: Map con configuración de procesamiento
+  Accepts:
+  - params: Map with processing configuration and file inputs
 
-  Retorna:
-  - {:ok, resultado} - con la ruta del reporte y datos para mostrar
-  - {:error, razón} - en caso de error
+  Returns:
+  - {:ok, result} - with the report path and data for display
+  - {:error, reason} - in case of failure
   """
-  def procesar_desde_web(params) do
-    # 1. Determinar la fuente del archivo (upload o ruta)
-    # Retorna {path, filename_original} o {path, nil}
-    input_info = obtener_ruta_entrada(params)
+  def process_from_web(params) do
+    input_info = get_input_path(params)
 
-    # 2. Validar que tenemos un archivo válido
-    case validar_entrada(input_info) do
+    case validate_input(input_info) do
       :ok ->
         {input_path, _filename} = input_info
 
-        # 3. Determinar modo de procesamiento
-        modo = determinar_modo(params)
+        mode = determine_mode(params)
+        output_path = generate_output_name(params)
+        options = build_options_with_log(params, output_path)
 
-        # 4. Generar nombre de archivo de salida
-        output_path = generar_nombre_salida(params)
+        execute_processing(input_path, output_path, mode, options, params)
 
-        # 5. Extraer opciones de procesamiento (incluyendo error_log_path correcto)
-        opciones = construir_opciones_con_log(params, output_path)
-
-        # 6. Ejecutar procesamiento según el modo
-        ejecutar_procesamiento(input_path, output_path, modo, opciones, params)
-
-      {:error, mensaje} ->
-        {:error, mensaje}
+      {:error, message} ->
+        {:error, message}
     end
   end
 
-  # Obtiene la ruta de entrada del archivo desde los parámetros
-  # Retorna {path_or_paths, filename_original} para poder validar la extensión correctamente
-  defp obtener_ruta_entrada(%{"archivos_subidos" => archivos}) when is_list(archivos) do
-    # Múltiples archivos subidos
-    IO.puts("📤 Procesando #{length(archivos)} archivo(s) subido(s)...")
+  # Retrieves the file input path from the parameters
+  # Returns {path_or_paths, original_filename} to validate the extension properly
+  defp get_input_path(%{"uploaded_files" => files}) when is_list(files) do
+    IO.puts("📤 Processing #{length(files)} uploaded file(s)...")
 
-    # Generar un ID de lote único para esta ejecución (servirá como nombre de la subcarpeta)
     batch_id = System.system_time(:millisecond)
 
-    # Copiar todos los archivos y recolectar sus rutas
-    rutas_permanentes =
-      archivos
+    permanent_paths =
+      files
       |> Enum.map(fn upload ->
-        # Ahora pasamos el batch_id como segundo argumento
-        case copiar_archivo_subido(upload, batch_id) do
-          {:ok, ruta} -> ruta
+        case copy_uploaded_file(upload, batch_id) do
+          {:ok, path} -> path
           {:error, _} -> nil
         end
       end)
       |> Enum.filter(&(&1 != nil))
 
-    if rutas_permanentes == [] do
+    if permanent_paths == [] do
       {nil, nil}
     else
-      # Retornar lista de rutas
-      {rutas_permanentes, nil}
+      {permanent_paths, nil}
     end
   end
 
-  # También actualizamos la versión para un solo archivo por consistencia
-  defp obtener_ruta_entrada(%{"archivos_subidos" => upload}) when is_map(upload) do
+  # Handles a single uploaded file
+  defp get_input_path(%{"uploaded_files" => upload}) when is_map(upload) do
     batch_id = System.system_time(:millisecond)
 
-    case copiar_archivo_subido(upload, batch_id) do
-      {:ok, ruta_permanente} ->
-        {ruta_permanente, upload.filename}
+    case copy_uploaded_file(upload, batch_id) do
+      {:ok, permanent_path} ->
+        {permanent_path, upload.filename}
 
       {:error, _reason} ->
         {nil, nil}
     end
   end
 
-  defp obtener_ruta_entrada(%{"archivos_subidos" => upload}) when is_map(upload) do
-    batch_id = System.system_time(:millisecond)
-
-    case copiar_archivo_subido(upload, batch_id) do
-      {:ok, ruta_permanente} ->
-        {ruta_permanente, upload.filename}
-
-      {:error, _reason} ->
-        {nil, nil}
-    end
+  # Handles a local file path provided as a string
+  defp get_input_path(%{"file_path" => path}) when is_binary(path) and path != "" do
+    {String.trim(path), nil}
   end
 
-  defp obtener_ruta_entrada(%{"ruta_archivo" => ruta}) when is_binary(ruta) and ruta != "" do
-    # Si se proporcionó una ruta de archivo, el filename es nil (usaremos la ruta para la extensión)
-    {String.trim(ruta), nil}
-  end
-
-  defp obtener_ruta_entrada(_params) do
+  # Fallback for empty or invalid input
+  defp get_input_path(_params) do
     {nil, nil}
   end
 
-  # Copia el archivo subido a una ubicación permanente dentro de una carpeta de lote
-  defp copiar_archivo_subido(%Plug.Upload{path: temp_path, filename: filename}, batch_id) do
-    # Crear subdirectorio único para este lote
+  # Copies the uploaded file to a permanent location within a batch folder
+  defp copy_uploaded_file(%Plug.Upload{path: temp_path, filename: filename}, batch_id) do
     upload_dir = Path.join("priv/static/uploads", to_string(batch_id))
     File.mkdir_p!(upload_dir)
 
-    # El archivo conserva su nombre original exacto
-    destino = Path.join(upload_dir, filename)
+    destination = Path.join(upload_dir, filename)
 
-    case File.cp(temp_path, destino) do
+    case File.cp(temp_path, destination) do
       :ok ->
-        IO.puts("Archivo copiado: #{filename} -> #{destino}")
-        {:ok, destino}
+        IO.puts("File copied: #{filename} -> #{destination}")
+        {:ok, destination}
 
       {:error, reason} ->
-        IO.puts("❌ Error al copiar archivo subido: #{inspect(reason)}")
+        IO.puts("❌ Error copying uploaded file: #{inspect(reason)}")
         {:error, reason}
     end
   end
 
-  # Valida que la entrada sea válida
-  # Ahora recibe {path_or_paths, filename} en lugar de solo path
-  defp validar_entrada({nil, _}) do
-    {:error, "Debes subir uno o más archivos, o proporcionar una ruta válida"}
+  # Validates that the input is a valid file, directory, or list of files
+  defp validate_input({nil, _}) do
+    {:error, "You must upload one or more files, or provide a valid path"}
   end
 
-  defp validar_entrada({paths, _filename}) when is_list(paths) do
-    # Lista de archivos - validar que todos existan
+  defp validate_input({paths, _filename}) when is_list(paths) do
     if Enum.all?(paths, &File.regular?/1) do
       :ok
     else
-      archivos_faltantes = Enum.filter(paths, fn p -> not File.regular?(p) end)
-      {:error, "Algunos archivos no existen: #{inspect(archivos_faltantes)}"}
+      missing_files = Enum.filter(paths, fn p -> not File.regular?(p) end)
+      {:error, "Some files do not exist: #{inspect(missing_files)}"}
     end
   end
 
-  defp validar_entrada({path, filename}) when is_binary(path) do
+  defp validate_input({path, filename}) when is_binary(path) do
     cond do
       not File.exists?(path) ->
-        {:error, "El archivo o directorio no existe: #{path}"}
+        {:error, "The file or directory does not exist: #{path}"}
 
       File.dir?(path) ->
-        # Es un directorio, validar que contenga archivos soportados
-        case tiene_archivos_soportados?(path) do
+        case has_supported_files?(path) do
           true -> :ok
-          false -> {:error, "El directorio no contiene archivos CSV, JSON o LOG"}
+          false -> {:error, "The directory does not contain CSV, JSON, or LOG files"}
         end
 
       File.regular?(path) ->
-        # Es un archivo, validar extensión
-        # Si tenemos filename (Plug.Upload), usar ese para la extensión
-        # Si no, usar el path directamente
         ext = if is_binary(filename), do: Path.extname(filename), else: Path.extname(path)
 
         if ext in [".csv", ".json", ".log"] do
           :ok
         else
-          {:error,
-           "Formato de archivo no soportado. Use CSV, JSON o LOG (extensión detectada: #{ext})"}
+          {:error, "Unsupported file format. Use CSV, JSON, or LOG (detected extension: #{ext})"}
         end
 
       true ->
-        {:error, "Ruta inválida"}
+        {:error, "Invalid path"}
     end
   end
 
-  # Verifica si un directorio contiene archivos soportados
-  defp tiene_archivos_soportados?(dir) do
+  # Checks if a directory contains supported files
+  defp has_supported_files?(dir) do
     Path.wildcard(Path.join([dir, "**", "*"]))
     |> Enum.any?(fn file ->
       File.regular?(file) and Path.extname(file) in [".csv", ".json", ".log"]
     end)
   end
 
-  # Construye las opciones de procesamiento desde los parámetros del formulario
-  defp construir_opciones(params) do
-    opciones = []
+  # Builds processing options from form parameters
+  defp build_options(params) do
+    options = []
 
-    # Max workers
-    opciones =
+    options =
       case params["max_workers"] do
         "" ->
-          opciones
+          options
 
         nil ->
-          opciones
+          options
 
         value ->
           case parse_number_or_infinity(value) do
-            nil -> opciones
-            parsed -> Keyword.put(opciones, :max_workers, parsed)
+            nil -> options
+            parsed -> Keyword.put(options, :max_workers, parsed)
           end
       end
 
-    # Timeout
-    opciones =
+    options =
       case params["timeout"] do
         "" ->
-          opciones
+          options
 
         nil ->
-          opciones
+          options
 
         value ->
           case parse_number_or_infinity(value) do
-            nil -> opciones
-            parsed -> Keyword.put(opciones, :timeout_ms, parsed)
+            nil -> options
+            parsed -> Keyword.put(options, :timeout_ms, parsed)
           end
       end
 
-    # Retries
-    opciones =
+    options =
       case params["retry_count"] do
         "" ->
-          opciones
+          options
 
         nil ->
-          opciones
+          options
 
         value ->
           case Integer.parse(value) do
-            {num, ""} when num >= 0 -> Keyword.put(opciones, :retries, num)
-            _ -> opciones
+            {num, ""} when num >= 0 -> Keyword.put(options, :retries, num)
+            _ -> options
           end
       end
 
-    opciones
+    options
   end
 
-  # Construye las opciones de procesamiento incluyendo error_log_path
-  defp construir_opciones_con_log(params, output_path) do
-    opciones = construir_opciones(params)
+  # Builds processing options including error_log_path
+  defp build_options_with_log(params, output_path) do
+    options = build_options(params)
 
-    # Agregar error_log_path basado en el nombre del reporte
-    # Esto evita el bug del default que incluye toda la ruta
     File.mkdir_p!("logs")
     base_name = output_path |> Path.basename() |> Path.rootname()
     error_log = "logs/#{base_name}_errors.log"
 
-    Keyword.put(opciones, :error_log_path, error_log)
+    Keyword.put(options, :error_log_path, error_log)
   end
 
-  # Parsea un número o la palabra "infinity"
+  # Parses a number or the word "infinity"
   defp parse_number_or_infinity("infinity"), do: :infinity
   defp parse_number_or_infinity("Infinity"), do: :infinity
   defp parse_number_or_infinity("INFINITY"), do: :infinity
@@ -260,74 +219,61 @@ defmodule FileProcessorWeb.FileProcessingAdapter do
     end
   end
 
-  # Determina el modo de procesamiento
-  defp determinar_modo(%{"processing_type" => "paralelo"}), do: "parallel"
-  defp determinar_modo(%{"processing_type" => "secuencial"}), do: "sequential"
-  # Default
-  defp determinar_modo(_), do: "parallel"
+  # Determines the processing mode
+  defp determine_mode(%{"processing_type" => "parallel"}), do: "parallel"
+  defp determine_mode(%{"processing_type" => "sequential"}), do: "sequential"
+  defp determine_mode(_), do: "parallel"
 
-  # Genera el nombre del archivo de salida
-  defp generar_nombre_salida(%{"report_name" => nombre})
-       when is_binary(nombre) and nombre != "" do
-    # Sanitizar el nombre del archivo
-    nombre_limpio =
-      nombre
+  # Generates the output file name
+  defp generate_output_name(%{"report_name" => name})
+       when is_binary(name) and name != "" do
+    clean_name =
+      name
       |> String.trim()
       |> String.replace(~r/[^\w\s-]/, "")
       |> String.replace(~r/\s+/, "_")
 
-    # Asegurar que termine en .txt
-    if String.ends_with?(nombre_limpio, ".txt") do
-      "priv/static/reports/#{nombre_limpio}"
+    if String.ends_with?(clean_name, ".txt") do
+      "priv/static/reports/#{clean_name}"
     else
-      "priv/static/reports/#{nombre_limpio}.txt"
+      "priv/static/reports/#{clean_name}.txt"
     end
   end
 
-  defp generar_nombre_salida(_params) do
-    # Generar nombre con timestamp
+  defp generate_output_name(_params) do
     timestamp =
       DateTime.utc_now()
       |> DateTime.to_unix()
 
-    "priv/static/reports/reporte_#{timestamp}.txt"
+    "priv/static/reports/report_#{timestamp}.txt"
   end
 
-  # Ejecuta el procesamiento según el modo seleccionado
-  defp ejecutar_procesamiento(input_path, output_path, modo, opciones, params) do
-    # Asegurar que existe el directorio de reportes
+  # Executes processing based on the selected mode
+  defp execute_processing(input_path, output_path, mode, options, params) do
     File.mkdir_p!("priv/static/reports")
 
-    # Verificar si está activado el benchmark
-    # Los checkboxes HTML envían "on" cuando están marcados, o nada cuando no lo están
-    benchmark_activo? = params["benchmark_active"] in ["true", "on"]
+    benchmark_active? = params["benchmark_active"] in ["true", "on"]
 
-    resultado =
-      if benchmark_activo? do
-        ejecutar_benchmark(input_path, opciones)
+    result =
+      if benchmark_active? do
+        execute_benchmark(input_path, options)
       else
-        ejecutar_procesamiento_normal(input_path, output_path, modo, opciones)
+        execute_normal_processing(input_path, output_path, mode, options)
       end
 
-    # Limpiar archivo temporal si fue un archivo subido (está en priv/static/uploads)
-    limpiar_archivo_temporal(input_path)
-
-    guardar_en_historial(resultado)
+    clean_temp_file(input_path)
+    save_to_history(result)
   end
 
-  # Handles both a single path (binary) and a list of paths.
-  defp limpiar_archivo_temporal(paths) when is_list(paths) do
-    # 1. Borrar cada archivo individualmente
-    Enum.each(paths, &limpiar_archivo_temporal/1)
+  # Handles cleaning up temporal files from the uploads directory
+  defp clean_temp_file(paths) when is_list(paths) do
+    Enum.each(paths, &clean_temp_file/1)
 
-    # 2. Borrar los directorios vacíos que quedaron
     paths
     |> Enum.map(&Path.dirname/1)
     |> Enum.uniq()
     |> Enum.each(fn dir ->
-      # Asegurarnos de que estamos borrando solo dentro de uploads
       if String.starts_with?(dir, "priv/static/uploads/") and dir != "priv/static/uploads" do
-        # rmdir es seguro, solo borra la carpeta si ya no tiene archivos
         File.rmdir(dir)
       end
     end)
@@ -335,63 +281,57 @@ defmodule FileProcessorWeb.FileProcessingAdapter do
     :ok
   end
 
-  defp limpiar_archivo_temporal(path) when is_binary(path) do
-    # Only remove files that are inside the uploads directory
+  defp clean_temp_file(path) when is_binary(path) do
     if String.starts_with?(path, "priv/static/uploads/") do
       case File.rm(path) do
         :ok ->
           :ok
 
         {:error, reason} ->
-          IO.puts("Advertencia: No se pudo eliminar archivo temporal #{path}: #{inspect(reason)}")
+          IO.puts("Warning: Could not remove temporary file #{path}: #{inspect(reason)}")
           :ok
       end
     else
-      # Do not remove files provided by the user via external/local path
       :ok
     end
   end
 
-  # Safety fallback for unexpected inputs (nil, maps, etc.)
-  defp limpiar_archivo_temporal(_), do: :ok
+  defp clean_temp_file(_), do: :ok
 
-  # Ejecuta el procesamiento normal
-  defp ejecutar_procesamiento_normal(input_path, output_path, modo, opciones) do
-    case API.FileProcessor.run(input_path, output_path, modo, opciones) do
+  # Executes normal processing and parses result metrics
+  defp execute_normal_processing(input_path, output_path, mode, options) do
+    case API.FileProcessor.run(input_path, output_path, mode, options) do
       {:ok, report_path, report_data} ->
-        # Leer el contenido del reporte para mostrarlo
-        contenido = File.read!(report_path)
-
-        # Extraer métricas clave del reporte para la vista
-        metricas = extraer_metricas_del_reporte(contenido)
+        content = File.read!(report_path)
+        metrics = extract_metrics_from_report(content)
 
         {:ok,
          %{
-           ruta_reporte: report_path,
-           contenido: contenido,
-           metricas: metricas,
+           report_path: report_path,
+           content: content,
+           metrics: metrics,
            report_data: report_data,
-           modo: modo,
-           exito: true
+           mode: mode,
+           success: true
          }}
 
-      {:error, errores} when is_list(errores) ->
-        mensaje_error = formatear_errores(errores)
-        {:error, mensaje_error}
+      {:error, errors} when is_list(errors) ->
+        error_message = format_errors(errors)
+        {:error, error_message}
     end
   end
 
-  # Ejecuta el benchmark
-  defp ejecutar_benchmark(input_path, opciones) do
+  # Executes benchmark mode
+  defp execute_benchmark(input_path, options) do
     try do
-      total_archivos =
+      total_files =
         cond do
           is_list(input_path) ->
             length(input_path)
 
           is_binary(input_path) and File.dir?(input_path) ->
             case File.ls(input_path) do
-              {:ok, archivos} -> length(archivos)
+              {:ok, files} -> length(files)
               {:error, _} -> 0
             end
 
@@ -402,64 +342,63 @@ defmodule FileProcessorWeb.FileProcessingAdapter do
             0
         end
 
-      {:ok, resultados} = API.FileProcessor.benchmark(input_path, opciones)
+      {:ok, results} = API.FileProcessor.benchmark(input_path, options)
 
       {:ok,
        %{
          benchmark: true,
-         resultados: resultados,
-         exito: true,
-         total_files: total_archivos
+         results: results,
+         success: true,
+         total_files: total_files
        }}
     rescue
       e ->
-        {:error, "Error en benchmark: #{Exception.message(e)}"}
+        {:error, "Benchmark error: #{Exception.message(e)}"}
     end
   end
 
-  # Extrae métricas clave del contenido del reporte
-  defp extraer_metricas_del_reporte(contenido) do
-    # Extraer información básica usando expresiones regulares
+  # Extracts key metrics from the report content
+  defp extract_metrics_from_report(content) do
     %{
-      archivos_procesados: extraer_numero(contenido, ~r/Total files processed:\s*(\d+)/),
-      archivos_csv: extraer_numero(contenido, ~r/CSV files:\s*(\d+)/),
-      archivos_json: extraer_numero(contenido, ~r/JSON files:\s*(\d+)/),
-      archivos_log: extraer_numero(contenido, ~r/LOG files:\s*(\d+)/),
-      tiempo_procesamiento:
-        extraer_tiempo(contenido, ~r/Total processing time:\s*([\d.]+)\s*seconds/),
-      tasa_exito: extraer_porcentaje(contenido, ~r/Success rate:\s*([\d.]+)%/)
+      processed_files: extract_number(content, ~r/Total files processed:\s*(\d+)/),
+      csv_files: extract_number(content, ~r/CSV files:\s*(\d+)/),
+      json_files: extract_number(content, ~r/JSON files:\s*(\d+)/),
+      log_files: extract_number(content, ~r/LOG files:\s*(\d+)/),
+      processing_time: extract_time(content, ~r/Total processing time:\s*([\d.]+)\s*seconds/),
+      success_rate: extract_percentage(content, ~r/Success rate:\s*([\d.]+)%/)
     }
   end
 
-  # Extrae un número del texto usando regex
-  defp extraer_numero(texto, regex) do
-    case Regex.run(regex, texto) do
-      [_, numero] -> String.to_integer(numero)
+  # Extracts a number from text using regex
+  defp extract_number(text, regex) do
+    case Regex.run(regex, text) do
+      [_, number] -> String.to_integer(number)
       _ -> 0
     end
   end
 
-  # Extrae un tiempo del texto usando regex
-  defp extraer_tiempo(texto, regex) do
-    case Regex.run(regex, texto) do
-      [_, tiempo] -> String.to_float(tiempo)
+  # Extracts a time value from text using regex
+  defp extract_time(text, regex) do
+    case Regex.run(regex, text) do
+      [_, time] -> String.to_float(time)
       _ -> 0.0
     end
   end
 
-  # Extrae un porcentaje del texto usando regex
-  defp extraer_porcentaje(texto, regex) do
-    case Regex.run(regex, texto) do
-      [_, porcentaje] -> String.to_float(porcentaje)
+  # Extracts a percentage from text using regex
+  defp extract_percentage(text, regex) do
+    case Regex.run(regex, text) do
+      [_, percentage] -> String.to_float(percentage)
       _ -> 0.0
     end
   end
 
-  defp formatear_errores(errores) when is_list(errores) do
-    errores
+  # Formats a list of errors into a readable string
+  defp format_errors(errors) when is_list(errors) do
+    errors
     |> Enum.map(fn
       %{reason: :no_successful_files} ->
-        "No se pudo procesar ningún archivo. Todos los documentos presentaban errores críticos o su formato era inválido."
+        "No files could be processed. All documents had critical errors or invalid formats."
 
       %{path: path, reason: reason, details: details} ->
         "• #{Path.basename(path)}: #{reason} - #{inspect(details)}"
@@ -467,82 +406,86 @@ defmodule FileProcessorWeb.FileProcessingAdapter do
       %{path: path, error: error} ->
         "• #{Path.basename(path)}: #{error}"
 
-      otro ->
-        "• #{inspect(otro)}"
+      other ->
+        "• #{inspect(other)}"
     end)
     |> Enum.join("\n")
   end
 
-  defp guardar_en_historial({:ok, %{benchmark: true} = res}) do
+  # Saves benchmark results to history
+  defp save_to_history({:ok, %{benchmark: true} = res}) do
     attrs = %{
       mode: "benchmark",
       total_files: res.total_files,
       success_rate: 100.0,
-      execution_time_ms: (res.resultados.sequential_time + res.resultados.parallel_time) * 1000,
-      data: res.resultados
+      execution_time_ms: (res.results.sequential_time + res.results.parallel_time) * 1000,
+      data: res.results
     }
 
     FileProcessor.History.create_report(attrs)
     {:ok, res}
   end
 
-  defp guardar_en_historial({:ok, res}) do
-    contenido_texto =
-      if Map.has_key?(res, :ruta_reporte) and File.exists?(res.ruta_reporte) do
-        File.read!(res.ruta_reporte)
+  # Saves normal processing results to history
+  defp save_to_history({:ok, res}) do
+    text_content =
+      if Map.has_key?(res, :report_path) and File.exists?(res.report_path) do
+        File.read!(res.report_path)
       else
-        "No hay reporte de texto disponible."
+        "No text report available."
       end
 
-    nombre_archivo =
-      if Map.has_key?(res, :ruta_reporte) and res.ruta_reporte do
-        Path.basename(res.ruta_reporte)
+    file_name =
+      if Map.has_key?(res, :report_path) and res.report_path do
+        Path.basename(res.report_path)
       else
         nil
       end
 
-    report_data_con_texto =
+    report_data_with_text =
       res.report_data
-      |> Map.put(:texto_completo, contenido_texto)
-      |> Map.put(:nombre_reporte_original, nombre_archivo)
+      |> Map.put(:full_text, text_content)
+      |> Map.put(:original_report_name, file_name)
 
-    data_limpia = limpiar_para_json(report_data_con_texto)
+    cleaned_data = clean_for_json(report_data_with_text)
 
     total = res.report_data.counts.total
-    exitosos = res.report_data.counts.ok
-    tasa = if total > 0, do: exitosos * 100.0 / total, else: 0.0
+    successful = res.report_data.counts.ok
+    rate = if total > 0, do: successful * 100.0 / total, else: 0.0
 
     attrs = %{
-      mode: res.modo,
+      mode: res.mode,
       total_files: total,
-      success_rate: tasa,
+      success_rate: rate,
       execution_time_ms: res.report_data.elapsed_seconds * 1000,
-      data: data_limpia
+      data: cleaned_data
     }
 
     FileProcessor.History.create_report(attrs)
     {:ok, res}
   end
 
-  defp guardar_en_historial(error), do: error
+  defp save_to_history(error), do: error
 
-  defp limpiar_para_json(%MapSet{} = data) do
-    data |> MapSet.to_list() |> Enum.map(&limpiar_para_json/1)
+  # Cleans data structures so they can be properly encoded to JSON
+  defp clean_for_json(%MapSet{} = data) do
+    data |> MapSet.to_list() |> Enum.map(&clean_for_json/1)
   end
 
-  defp limpiar_para_json(%{__struct__: _} = data), do: data
+  defp clean_for_json(%{__struct__: _} = data), do: data
 
-  defp limpiar_para_json(data) when is_map(data) do
-    Map.new(data, fn {k, v} -> {k, limpiar_para_json(v)} end)
+  defp clean_for_json(data) when is_map(data) do
+    Map.new(data, fn {k, v} -> {k, clean_for_json(v)} end)
   end
 
-  defp limpiar_para_json(data) when is_list(data) do
-    Enum.map(data, &limpiar_para_json/1)
+  defp clean_for_json(data) when is_list(data) do
+    Enum.map(data, &clean_for_json/1)
   end
 
-  defp limpiar_para_json(data) when is_tuple(data) do
-    data |> Tuple.to_list() |> Enum.map(&limpiar_para_json/1)
+  defp clean_for_json(data) when is_tuple(data) do
+    data |> Tuple.to_list() |> Enum.map(&clean_for_json/1)
   end
 
-  defp limpiar_para_json(data), do: data
+  defp clean_for_json(data), do: data
 end
+

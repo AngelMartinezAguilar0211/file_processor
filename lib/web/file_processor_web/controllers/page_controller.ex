@@ -2,138 +2,118 @@ defmodule FileProcessorWeb.PageController do
   use FileProcessorWeb, :controller
 
   @doc """
-  Renderiza la página principal con el formulario de procesamiento.
+  Renders the main page with the processing form.
   """
   def home(conn, _params) do
     render(conn, :home)
   end
 
   @doc """
-  Procesa los archivos subidos o la ruta proporcionada.
-
-  Recibe los parámetros del formulario:
-  - archivo_subido: archivo subido por el usuario
-  - ruta_archivo: ruta local del archivo/directorio
-  - processing_type: "secuencial" o "paralelo"
-  - benchmark_active: "true" si está activado el benchmark
-  - report_name: nombre personalizado del reporte
-  - retry_count: número de reintentos
-  - max_workers: número máximo de workers
-  - timeout: timeout en milisegundos
+  Processes the uploaded files or the provided path.
   """
-  def procesar(conn, params) do
-    # Loguear los parámetros recibidos para debugging
-    # IO.inspect(params, label: "PARAMS RECIBIDOS")
-
-    # Procesar el archivo usando el adaptador
-    case FileProcessorWeb.FileProcessingAdapter.procesar_desde_web(params) do
-      {:ok, resultado} ->
-        # Éxito: renderizar página de resultados
-        # IO.puts("Procesamiento exitoso, renderizando resultados...")
-
+  def process(conn, params) do
+    # Processes the file using the adapter
+    case FileProcessorWeb.FileProcessingAdapter.process_from_web(params) do
+      {:ok, result} ->
         conn
-        |> put_flash(:info, "Procesamiento completado exitosamente")
-        |> render(:resultado, resultado: resultado)
+        |> put_flash(:info, "Processing completed successfully")
+        |> render(:result, result: result)
 
-      {:error, mensaje_error} ->
-        # Atrapa cualquier error y lo muestra
-        # IO.puts("Error durante procesamiento: #{mensaje_error}")
-
+      {:error, error_message} ->
         conn
-        |> put_flash(:error, mensaje_error)
+        |> put_flash(:error, error_message)
         |> redirect(to: ~p"/")
     end
   end
 
-  def historial(conn, _params) do
-    reportes = FileProcessor.History.list_reports()
+  def history(conn, _params) do
+    reports = FileProcessor.History.list_reports()
 
-    render(conn, :historial, reportes: reportes)
+    render(conn, :history, reports: reports)
   end
 
-  def detalle_historial(conn, %{"id" => id}) do
-    reporte = FileProcessor.History.get_report!(id)
-    datos_atomizados = atomize_keys(reporte.data)
+  def history_detail(conn, %{"id" => id}) do
+    report = FileProcessor.History.get_report!(id)
+    atomized_data = atomize_keys(report.data)
 
-    texto_reporte = datos_atomizados[:texto_completo] || "Contenido no encontrado"
-    nombre_guardado = datos_atomizados[:nombre_reporte_original]
+    report_text = atomized_data[:full_text] || "Content not found"
+    saved_name = atomized_data[:original_report_name]
 
-    nombre_archivo =
+    file_name =
       cond do
-        is_binary(nombre_guardado) ->
-          nombre_guardado
+        is_binary(saved_name) ->
+          saved_name
 
-        not Enum.empty?(datos_atomizados[:csv_files] || []) ->
-          carpeta =
-            List.first(datos_atomizados[:csv_files]).path |> Path.dirname() |> Path.basename()
+        not Enum.empty?(atomized_data[:csv_files] || []) ->
+          folder =
+            List.first(atomized_data[:csv_files]).path |> Path.dirname() |> Path.basename()
 
-          "reporte_#{carpeta}.txt"
+          "report_#{folder}.txt"
 
-        not Enum.empty?(datos_atomizados[:json_files] || []) ->
-          carpeta =
-            List.first(datos_atomizados[:json_files]).path |> Path.dirname() |> Path.basename()
+        not Enum.empty?(atomized_data[:json_files] || []) ->
+          folder =
+            List.first(atomized_data[:json_files]).path |> Path.dirname() |> Path.basename()
 
-          "reporte_#{carpeta}.txt"
+          "report_#{folder}.txt"
 
-        not Enum.empty?(datos_atomizados[:log_files] || []) ->
-          carpeta =
-            List.first(datos_atomizados[:log_files]).path |> Path.dirname() |> Path.basename()
+        not Enum.empty?(atomized_data[:log_files] || []) ->
+          folder =
+            List.first(atomized_data[:log_files]).path |> Path.dirname() |> Path.basename()
 
-          "reporte_#{carpeta}.txt"
+          "report_#{folder}.txt"
 
         true ->
-          "reporte_#{reporte.inserted_at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix()}.txt"
+          "report_#{report.inserted_at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix()}.txt"
       end
 
-    resultado_reconstruido =
-      if reporte.mode == "benchmark" do
+    reconstructed_result =
+      if report.mode == "benchmark" do
         %{
           benchmark: true,
-          resultados: datos_atomizados,
-          exito: true,
-          input_path: ["Historial"]
+          results: atomized_data,
+          success: true,
+          input_path: ["History"]
         }
       else
         %{
           benchmark: false,
-          report_data: datos_atomizados,
-          exito: true,
-          modo: reporte.mode,
-          input_path: ["Recuperado del Historial"],
-          ruta_reporte: nombre_archivo,
-          texto_reporte: texto_reporte
+          report_data: atomized_data,
+          success: true,
+          mode: report.mode,
+          input_path: ["Recovered from History"],
+          report_path: file_name,
+          report_text: report_text
         }
       end
 
-    render(conn, :resultado, resultado: resultado_reconstruido)
+    render(conn, :result, result: reconstructed_result)
   end
 
-  # 1. Para Mapas: atomizamos llaves y procesamos valores
+  # Processes map keys into atoms and evaluates values
   defp atomize_keys(map) when is_map(map) do
     Map.new(map, fn {k, v} ->
       {maybe_atom(k), atomize_keys(v)}
     end)
   end
 
-  # 2. Para Listas: procesamos cada elemento
+  # Iterates through lists to process each element
   defp atomize_keys(list) when is_list(list) do
     Enum.map(list, &atomize_keys/1)
   end
 
-  # 3. Para Valores de Texto: intentamos convertirlos a átomos (ej: "ok" -> :ok)
+  # Evaluates strings for atom conversion
   defp atomize_keys(val) when is_binary(val) do
     maybe_atom(val)
   end
 
-  # Caso base para números y otros tipos
+  # Handles default fallback for numbers and other unmapped types
   defp atomize_keys(other), do: other
 
-  # Función de apoyo para no repetir código
+  # Attempts to convert strings to existing atoms
   defp maybe_atom(string) when is_binary(string) do
     try do
       String.to_existing_atom(string)
     rescue
-      # Si es una ruta o mensaje largo, se queda como texto
       ArgumentError -> string
     end
   end

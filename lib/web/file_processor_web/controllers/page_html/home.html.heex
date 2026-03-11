@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>File Processor - Dashboard</title>
+    <title>File Processor - Inicio</title>
   </head>
   <body>
     <div class="main-container">
@@ -11,7 +11,7 @@
         <div class="logo">File Processor</div>
         <nav class="nav">
           <a href="/">Inicio</a>
-          <a href="/historial">Historial</a>
+          <a href="/history">Historial</a>
         </nav>
       </header>
 
@@ -39,7 +39,7 @@
           </div>
         </div>
       <% end %>
-      <form action="/procesar" method="POST" enctype="multipart/form-data" class="processor-form">
+      <form action="/process" method="POST" enctype="multipart/form-data" class="processor-form">
         <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
 
         <div class="form-grid">
@@ -58,7 +58,7 @@
               <input
                 type="file"
                 id="file-input"
-                name="archivos_subidos[]"
+                name="uploaded_files[]"
                 multiple
                 style="display: none;"
                 accept=".csv, .json, .log"
@@ -70,7 +70,7 @@
 
               <input
                 type="text"
-                name="ruta_archivo"
+                name="file_path"
                 class="input-path"
                 placeholder="C:\usuarios\documentos\archivo.csv"
               />
@@ -86,17 +86,17 @@
                 <input
                   type="radio"
                   name="processing_type"
-                  value="secuencial"
-                  id="secuencial"
+                  value="sequential"
+                  id="sequential"
                   checked
                 />
-                <label for="secuencial">
+                <label for="sequential">
                   <span class="radio-dot"></span> Secuencial
                 </label>
               </div>
               <div class="card">
-                <input type="radio" name="processing_type" value="paralelo" id="paralelo" />
-                <label for="paralelo">
+                <input type="radio" name="processing_type" value="parallel" id="parallel" />
+                <label for="parallel">
                   <span class="radio-dot"></span> Paralelo
                 </label>
               </div>
@@ -137,7 +137,7 @@
     </div>
 
     <script>
-      // Mostrar los nombres de los archivos seleccionados
+      // Renders selected file information in the DOM
       document.getElementById('file-input').addEventListener('change', function(e) {
           const files = e.target.files;
           const fileList = document.getElementById('file-list');
@@ -147,14 +147,13 @@
               return;
           }
 
-          // Crear lista de archivos
           let html = '<div style="background: #f0f4ff; padding: 12px; border-radius: 8px; border-left: 4px solid #667eea;">';
           html += `<div style="font-weight: 600; color: #667eea; margin-bottom: 8px;">📁 ${files.length} archivo(s) seleccionado(s):</div>`;
           html += '<ul style="margin: 0; padding-left: 20px; color: #4a5568;">';
 
           for (let i = 0; i < files.length; i++) {
               const file = files[i];
-              const size = (file.size / 1024).toFixed(1); // KB
+              const size = (file.size / 1024).toFixed(1);
               html += `<li style="margin: 4px 0;">${file.name} <span style="color: #718096; font-size: 0.85em;">(${size} KB)</span></li>`;
           }
 
@@ -163,19 +162,20 @@
       });
     </script>
     <script>
+      // Controls visibility of concurrency options based on benchmark toggle state
       document.addEventListener("DOMContentLoaded", function() {
         const benchmarkToggle = document.querySelector('input[name="benchmark_active"]');
-        const opcionesConcurrencia = document.querySelector('.processing-cards');
-        const labelConcurrencia = document.querySelector('.input-label-small');
+        const concurrencyOptions = document.querySelector('.processing-cards');
+        const concurrencyLabel = document.querySelector('.input-label-small');
 
-        if (benchmarkToggle && opcionesConcurrencia) {
+        if (benchmarkToggle && concurrencyOptions) {
           benchmarkToggle.addEventListener("change", function() {
             if (this.checked) {
-              opcionesConcurrencia.style.display = "none";
-              if (labelConcurrencia) labelConcurrencia.style.display = "none";
+              concurrencyOptions.style.display = "none";
+              if (concurrencyLabel) concurrencyLabel.style.display = "none";
             } else {
-              opcionesConcurrencia.style.display = "flex";
-              if (labelConcurrencia) labelConcurrencia.style.display = "block";
+              concurrencyOptions.style.display = "flex";
+              if (concurrencyLabel) concurrencyLabel.style.display = "block";
             }
           });
         }

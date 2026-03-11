@@ -9,14 +9,14 @@ defmodule FileProcessorWeb.PageHTML do
   embed_templates "page_html/*"
 
   @doc """
-  Extrae la sección de resumen ejecutivo del contenido del reporte.
+  Extracts the executive summary section from the report content.
   """
-  def extraer_seccion_resumen(contenido) do
-    # Buscar la sección "EXECUTIVE SUMMARY" en el reporte
-    case String.split(contenido, "EXECUTIVE SUMMARY") do
-      [_antes, despues] ->
-        # Extraer todo hasta la siguiente sección (línea de guiones)
-        despues
+  def extract_summary_section(content) do
+    # Locates the "EXECUTIVE SUMMARY" section within the report
+    case String.split(content, "EXECUTIVE SUMMARY") do
+      [_before, remainder] ->
+        # Extracts content up to the next dashed separator line
+        remainder
         |> String.split(
           "--------------------------------------------------------------------------------"
         )
@@ -24,11 +24,12 @@ defmodule FileProcessorWeb.PageHTML do
         |> String.trim()
 
       _ ->
-        # Si no se encuentra la sección, mostrar las primeras líneas
-        contenido
+        # Returns the first 20 lines as a fallback if the section is not found
+        content
         |> String.split("\n")
         |> Enum.take(20)
         |> Enum.join("\n")
     end
   end
 end
+

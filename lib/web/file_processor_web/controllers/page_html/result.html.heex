@@ -11,14 +11,13 @@
         <div class="logo">File Processor</div>
         <nav class="nav">
           <a href="/">Inicio</a>
-          <a href="/historial">Historial</a>
+          <a href="/history">Historial</a>
         </nav>
       </header>
 
       <h1 class="main-title">Resultados del Procesamiento</h1>
 
-      <%= if @resultado[:benchmark] do %>
-        <!-- Vista de resultados de Benchmark -->
+      <%= if @result[:benchmark] do %>
         <div class="results-container">
           <div class="section-header">
             <h2>Resultados del Benchmark</h2>
@@ -32,10 +31,10 @@
               Factor de Aceleración
             </h3>
             <div style="font-size: 3.5rem; font-weight: 800; line-height: 1;">
-              {Float.round(@resultado[:resultados].speedup, 2)}x
+              {Float.round(@result[:results].speedup, 2)}x
             </div>
             <p style="margin-bottom: 0; margin-top: 0.5rem; color: #c7d2fe; font-size: 1.125rem;">
-              <%= if @resultado[:resultados].speedup > 1.0 do %>
+              <%= if @result[:results].speedup > 1.0 do %>
                 El procesamiento paralelo fue más rápido.
               <% else %>
                 El procesamiento secuencial fue más rápido.
@@ -53,7 +52,7 @@
                 <span style="font-size: 1.5rem;">⏱️</span>
               </h3>
               <div style="font-size: 2rem; font-weight: bold; color: #0f172a; margin: 1rem 0;">
-                {Float.round(@resultado[:resultados].sequential_time * 1000, 2)}
+                {Float.round(@result[:results].sequential_time * 1000, 2)}
                 <span style="font-size: 1rem; color: #64748b;">ms</span>
               </div>
             </div>
@@ -67,7 +66,7 @@
                 <span style="font-size: 1.5rem;">⚡</span>
               </h3>
               <div style="font-size: 2rem; font-weight: bold; color: #064e3b; margin: 1rem 0;">
-                {Float.round(@resultado[:resultados].parallel_time * 1000, 2)}
+                {Float.round(@result[:results].parallel_time * 1000, 2)}
                 <span style="font-size: 1rem; color: #047857;">ms</span>
               </div>
             </div>
@@ -78,28 +77,27 @@
           </div>
         </div>
       <% else %>
-        <!-- Vista de resultados normales -->
         <div class="results-container">
           <div class="tabs-container">
             <div class="tabs-header">
-              <button class="tab-button active" onclick="showTab('resumen')">Resumen</button>
+              <button class="tab-button active" onclick="showTab('summary')">Resumen</button>
               <button class="tab-button" onclick="showTab('html')">Reporte Detallado</button>
-              <%= if @resultado[:report_data].counts.failed > 0 do %>
+              <%= if @result[:report_data].counts.failed > 0 do %>
                 <button
                   class="tab-button"
-                  onclick="showTab('errores')"
+                  onclick="showTab('errors')"
                   style="color: #dc2626; font-weight: 600;"
                 >
                   Errores por Archivo
                 </button>
               <% end %>
-              <button class="tab-button" onclick="showTab('completo')">Archivo Texto</button>
+              <button class="tab-button" onclick="showTab('full')">Archivo Texto</button>
             </div>
 
-            <div id="tab-resumen" class="tab-content active">
+            <div id="tab-summary" class="tab-content active">
               <div class="section-header">
                 <h2>Resumen Ejecutivo</h2>
-                <%= if @resultado[:report_data].counts.failed == 0 do %>
+                <%= if @result[:report_data].counts.failed == 0 do %>
                   <span class="status-badge success">Completado sin errores</span>
                 <% else %>
                   <span class="status-badge" style="background: #fee2e2; color: #991b1b;">
@@ -114,18 +112,18 @@
               >
                 <div class="info-row">
                   <span class="info-label">Modo de Procesamiento:</span>
-                  <span class="info-value">{String.capitalize(@resultado[:modo])}</span>
+                  <span class="info-value">{String.capitalize(@result[:mode])}</span>
                 </div>
                 <div class="info-row">
                   <span class="info-label">Ruta del Reporte:</span>
-                  <span class="info-value code">{Path.basename(@resultado[:ruta_reporte])}</span>
+                  <span class="info-value code">{Path.basename(@result[:report_path])}</span>
                 </div>
               </div>
 
               <div class="metrics-summary">
                 <div class="metric-card">
                   <div class="metric-label">Total Procesados</div>
-                  <div class="metric-value">{@resultado[:report_data].counts.total}</div>
+                  <div class="metric-value">{@result[:report_data].counts.total}</div>
                 </div>
 
                 <div
@@ -133,76 +131,76 @@
                   style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);"
                 >
                   <div class="metric-label">Exitosos</div>
-                  <div class="metric-value">{@resultado[:report_data].counts.ok}</div>
+                  <div class="metric-value">{@result[:report_data].counts.ok}</div>
                 </div>
 
                 <div
                   class="metric-card"
                   style={
-                    if @resultado[:report_data].counts.failed > 0,
+                    if @result[:report_data].counts.failed > 0,
                       do: "background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);",
                       else: "background: linear-gradient(135deg, #9ca3af 0%, #6b7280 100%);"
                   }
                 >
                   <div class="metric-label">Con Errores</div>
-                  <div class="metric-value">{@resultado[:report_data].counts.failed}</div>
+                  <div class="metric-value">{@result[:report_data].counts.failed}</div>
                 </div>
 
                 <div class="metric-card">
                   <div class="metric-label">Tiempo Total</div>
                   <div class="metric-value">
-                    {Float.round(@resultado[:report_data].elapsed_seconds * 1000, 2)} ms
+                    {Float.round(@result[:report_data].elapsed_seconds * 1000, 2)} ms
                   </div>
                 </div>
 
-                <% tasa_exito =
-                  if @resultado[:report_data].counts.total > 0,
+                <% success_rate =
+                  if @result[:report_data].counts.total > 0,
                     do:
-                      @resultado[:report_data].counts.ok * 100.0 /
-                        @resultado[:report_data].counts.total,
+                      @result[:report_data].counts.ok * 100.0 /
+                        @result[:report_data].counts.total,
                     else: 0.0 %>
                 <div
                   class="metric-card"
                   style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);"
                 >
                   <div class="metric-label">Tasa de Éxito</div>
-                  <div class="metric-value">{Float.round(tasa_exito, 1)}%</div>
+                  <div class="metric-value">{Float.round(success_rate, 1)}%</div>
                 </div>
 
-                <%= if @resultado[:report_data].counts.csv > 0 do %>
+                <%= if @result[:report_data].counts.csv > 0 do %>
                   <div
                     class="metric-card"
                     style="background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%);"
                   >
                     <div class="metric-label">Archivos CSV</div>
-                    <div class="metric-value">{@resultado[:report_data].counts.csv}</div>
+                    <div class="metric-value">{@result[:report_data].counts.csv}</div>
                   </div>
                 <% end %>
 
-                <%= if @resultado[:report_data].counts.json > 0 do %>
+                <%= if @result[:report_data].counts.json > 0 do %>
                   <div
                     class="metric-card"
                     style="background: linear-gradient(135deg, #059669 0%, #047857 100%);"
                   >
                     <div class="metric-label">Archivos JSON</div>
-                    <div class="metric-value">{@resultado[:report_data].counts.json}</div>
+                    <div class="metric-value">{@result[:report_data].counts.json}</div>
                   </div>
                 <% end %>
 
-                <%= if @resultado[:report_data].counts.log > 0 do %>
+                <%= if @result[:report_data].counts.log > 0 do %>
                   <div
                     class="metric-card"
                     style="background: linear-gradient(135deg, #d97706 0%, #b45309 100%);"
                   >
                     <div class="metric-label">Archivos LOG</div>
-                    <div class="metric-value">{@resultado[:report_data].counts.log}</div>
+                    <div class="metric-value">{@result[:report_data].counts.log}</div>
                   </div>
                 <% end %>
               </div>
             </div>
 
             <div id="tab-html" class="tab-content">
-              <%= if @resultado[:report_data].counts.csv > 0 do %>
+              <%= if @result[:report_data].counts.csv > 0 do %>
                 <div
                   class="summary-section"
                   style="margin-bottom: 2rem; background: #eef2ff; border: 1px solid #c7d2fe;"
@@ -211,7 +209,7 @@
                     Métricas de Archivos CSV
                   </h3>
 
-                  <%= for file <- @resultado[:report_data].csv_files do %>
+                  <%= for file <- @result[:report_data].csv_files do %>
                     <div
                       class="processing-info"
                       style="margin-top: 1rem; background: rgba(255,255,255,0.7);"
@@ -274,13 +272,13 @@
                       <div class="info-row">
                         <span class="info-label">Ventas Totales:</span>
                         <span class="info-value font-bold">
-                          ${Float.round(@resultado[:report_data].csv_totals.total_sales, 2)}
+                          ${Float.round(@result[:report_data].csv_totals.total_sales, 2)}
                         </span>
                       </div>
                       <div class="info-row">
                         <span class="info-label">Productos Únicos Totales:</span>
                         <span class="info-value">
-                          {@resultado[:report_data].csv_totals.unique_products}
+                          {@result[:report_data].csv_totals.unique_products}
                         </span>
                       </div>
                     </div>
@@ -288,7 +286,7 @@
                 </div>
               <% end %>
 
-              <%= if @resultado[:report_data].counts.json > 0 do %>
+              <%= if @result[:report_data].counts.json > 0 do %>
                 <div
                   class="summary-section"
                   style="margin-bottom: 2rem; background: #ecfdf5; border: 1px solid #a7f3d0;"
@@ -297,7 +295,7 @@
                     Métricas de Archivos JSON
                   </h3>
 
-                  <%= for file <- @resultado[:report_data].json_files do %>
+                  <%= for file <- @result[:report_data].json_files do %>
                     <div
                       class="processing-info"
                       style="margin-top: 1rem; background: rgba(255,255,255,0.7);"
@@ -348,19 +346,19 @@
                       <div class="info-row">
                         <span class="info-label">Usuarios Totales:</span>
                         <span class="info-value font-bold">
-                          {@resultado[:report_data].json_totals.total_users}
+                          {@result[:report_data].json_totals.total_users}
                         </span>
                       </div>
                       <div class="info-row">
                         <span class="info-label">Activos:</span>
                         <span class="info-value">
-                          {@resultado[:report_data].json_totals.active_users}
+                          {@result[:report_data].json_totals.active_users}
                         </span>
                       </div>
                       <div class="info-row">
                         <span class="info-label">Inactivos:</span>
                         <span class="info-value">
-                          {@resultado[:report_data].json_totals.inactive_users}
+                          {@result[:report_data].json_totals.inactive_users}
                         </span>
                       </div>
                     </div>
@@ -368,7 +366,7 @@
                 </div>
               <% end %>
 
-              <%= if @resultado[:report_data].counts.log > 0 do %>
+              <%= if @result[:report_data].counts.log > 0 do %>
                 <div
                   class="summary-section"
                   style="margin-bottom: 2rem; background: #fffbeb; border: 1px solid #fde68a;"
@@ -377,7 +375,7 @@
                     Métricas de Archivos LOG
                   </h3>
 
-                  <%= for file <- @resultado[:report_data].log_files do %>
+                  <%= for file <- @result[:report_data].log_files do %>
                     <div
                       class="processing-info"
                       style="margin-top: 1rem; background: rgba(255,255,255,0.7);"
@@ -433,7 +431,7 @@
                     <div class="info-row">
                       <span class="info-label">Entradas Totales:</span>
                       <span class="info-value font-bold">
-                        {@resultado[:report_data].log_totals.total_entries}
+                        {@result[:report_data].log_totals.total_entries}
                       </span>
                     </div>
                   </div>
@@ -441,8 +439,8 @@
               <% end %>
             </div>
 
-            <%= if @resultado[:report_data].counts.failed > 0 do %>
-              <div id="tab-errores" class="tab-content">
+            <%= if @result[:report_data].counts.failed > 0 do %>
+              <div id="tab-errors" class="tab-content">
                 <div
                   class="summary-section"
                   style="background: #fef2f2; border: 1px solid #fecaca;"
@@ -451,7 +449,7 @@
                     Detalle de Errores en Archivos
                   </h3>
 
-                  <%= for file <- @resultado[:report_data].csv_files ++ @resultado[:report_data].json_files ++ @resultado[:report_data].log_files, file.status != :ok do %>
+                  <%= for file <- @result[:report_data].csv_files ++ @result[:report_data].json_files ++ @result[:report_data].log_files, file.status != :ok do %>
                     <div
                       class="processing-info"
                       style="margin-top: 1rem; background: white; border-left: 4px solid #ef4444; box-shadow: 0 1px 3px rgba(0,0,0,0.1);"
@@ -479,16 +477,16 @@
                             </li>
                           <% end %>
                         <% else %>
-                          <% errores_criticos =
-                            Enum.filter(@resultado[:report_data].errors, fn e ->
+                          <% critical_errors =
+                            Enum.filter(@result[:report_data].errors, fn e ->
                               e.path == file.path
                             end) %>
-                          <%= for error <- errores_criticos do %>
+                          <%= for error <- critical_errors do %>
                             <li style="margin-bottom: 0.25rem;">
                               {Map.get(error, :error, inspect(error))}
                             </li>
                           <% end %>
-                          <%= if length(errores_criticos) == 0 do %>
+                          <%= if length(critical_errors) == 0 do %>
                             <li style="margin-bottom: 0.25rem;">
                               Error crítico de procesamiento. Verifica el archivo log.
                             </li>
@@ -501,20 +499,19 @@
               </div>
             <% end %>
 
-            <div id="tab-completo" class="tab-content">
+            <div id="tab-full" class="tab-content">
               <div class="report-viewer">
-                <pre class="report-content" id="reporte-completo">
-                <%= if @resultado[:texto_reporte] do %>
-                    <%= @resultado[:texto_reporte] %>
+                <pre class="report-content" id="full-report">
+                <%= if @result[:report_text] do %>
+                    <%= @result[:report_text] %>
                 <% else %>
-                    <%= @resultado[:contenido] %>
+                    <%= @result[:content] %>
                 <% end %>
                 </pre>
               </div>
             </div>
           </div>
-          
-<!-- Botones de acción -->
+
           <div class="action-buttons">
             <a href="/" class="btn-primary">Procesar Nuevo Archivo</a>
           </div>
@@ -523,28 +520,21 @@
     </div>
 
     <script>
-      // Función para cambiar entre tabs
+      // Switches visibility between content tabs
       function showTab(tabName) {
-          // Ocultar todos los tabs
           document.querySelectorAll('.tab-content').forEach(tab => {
               tab.classList.remove('active');
           });
 
-          // Desactivar todos los botones
           document.querySelectorAll('.tab-button').forEach(button => {
               button.classList.remove('active');
           });
 
-          // Mostrar el tab seleccionado
           document.getElementById('tab-' + tabName).classList.add('active');
-
-          // Activar el botón correspondiente
           event.target.classList.add('active');
       }
     </script>
-
     <style>
-      /* Estilos adicionales específicos para la página de resultados */
       .results-container {
           background: white;
           border-radius: 12px;
