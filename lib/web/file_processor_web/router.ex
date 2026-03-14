@@ -17,10 +17,14 @@ defmodule FileProcessorWeb.Router do
   scope "/", FileProcessorWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
-    post "/process", PageController, :process
-    get "/history", PageController, :history
-    get "/history/:id", PageController, :history_detail
+    # Renders the main LiveView interface for file uploading and processing
+    live "/", HomeLive, :index
+
+    # Displays the history list of processed files
+    live "/history", HistoryLive, :index
+
+    # Displays the detailed view of a specific history report
+    live "/history/:id", HistoryDetailLive, :show
   end
 
   if Application.compile_env(:file_processor, :dev_routes) do
