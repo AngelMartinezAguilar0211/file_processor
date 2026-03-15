@@ -24,27 +24,45 @@
   >
     <div class="form-grid">
       <div class="upload-section">
-        <div class="drop-zone">
+        <div class="drop-zone" phx-drop-target={@uploads.uploaded_files.ref}>
           <div class="icon-cloud">☁️</div>
           <p class="file-types-text">CSV, JSON, LOG</p>
 
-          <button
-            type="button"
-            class="btn-upload"
-            onclick="document.getElementById('file-input').click()"
+          <label
+            class="btn-upload cursor-pointer"
+            style="display: inline-block; text-align: center;"
           >
             Cargar Archivos
-          </button>
-          <input
-            type="file"
-            id="file-input"
-            name="uploaded_files[]"
-            multiple
-            style="display: none;"
-            accept=".csv, .json, .log"
-          />
+            <.live_file_input
+              upload={@uploads.uploaded_files}
+              class="hidden"
+              style="display: none;"
+            />
+          </label>
 
-          <div id="file-list" style="margin-top: 10px;"></div>
+          <div id="file-list" style="margin-top: 15px; text-align: left;">
+            <% entries = @uploads.uploaded_files.entries %>
+            <% visible_entries = if @show_all_files, do: entries, else: Enum.take(entries, 2) %>
+            <% hidden_count = length(entries) - 2 %>
+
+            <%= for entry <- visible_entries do %>
+              <.file_entry entry={entry} upload={@uploads.uploaded_files} />
+            <% end %>
+
+            <%= if hidden_count > 0 do %>
+              <button
+                type="button"
+                phx-click="toggle-files"
+                style="font-size: 0.875rem; color: #3b82f6; text-align: center; margin-top: 8px; font-style: italic; background: none; border: none; cursor: pointer; width: 100%; text-decoration: underline;"
+              >
+                <%= if @show_all_files do %>
+                  Mostrar menos
+                <% else %>
+                  (y {hidden_count} {if hidden_count == 1, do: "archivo más", else: "archivos más"}...)
+                <% end %>
+              </button>
+            <% end %>
+          </div>
 
           <p class="path-divider">o escribe la ruta de tu archivo aquí:</p>
           <input

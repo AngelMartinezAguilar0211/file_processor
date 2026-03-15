@@ -62,4 +62,9 @@ config :phoenix, :json_library, Jason
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
+# Registers custom MIME types for the application
+config :mime, :types, %{
+  "text/plain" => ["log"]
+}
+
 import_config "#{config_env()}.exs"
