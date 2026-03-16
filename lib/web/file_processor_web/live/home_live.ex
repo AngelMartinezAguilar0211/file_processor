@@ -24,7 +24,7 @@ defmodule FileProcessorWeb.HomeLive do
       |> assign(active_tab: "summary")
       |> assign(processing: false)
       |> assign(progress: 0)
-      |> allow_upload(:uploaded_files, accept: ~w(.csv .json .log), max_entries: 100)
+      |> allow_upload(:uploaded_files, accept: ~w(.csv .json .log), max_entries: 1000)
 
     {:ok, socket}
   end
@@ -51,7 +51,6 @@ defmodule FileProcessorWeb.HomeLive do
         {:ok, upload_struct}
       end)
 
-    # Merges the processed file inputs with the rest of the form parameters
     input_info =
       if uploaded_plugs != [] do
         %{"uploaded_files" => uploaded_plugs}
@@ -59,27 +58,32 @@ defmodule FileProcessorWeb.HomeLive do
         %{"file_path" => file_path}
       end
 
-    processing_params = Map.merge(form_params, input_info)
+    # Validates input availability based on what was provided
+    validation_result = validate_input_availability(input_info)
 
-    # Captures the current LiveView process ID to send messages back
-    caller_pid = self()
+    case validation_result do
+      :ok ->
+        processing_params = Map.merge(form_params, input_info)
+        caller_pid = self()
+        # Spawns an asynchronous task to free the LiveView process and keep UI responsive
+        Task.start(fn ->
+          # Confirms the task process has successfully started
+          IO.puts("6. Task started successfully")
 
-    # Spawns an asynchronous task to free the LiveView process and keep UI responsive
-    Task.start(fn ->
-      # CODED DELAY TO SEE THE PROCESS INTERFACE
-      Process.sleep(500)
-      # Passes the caller PID into parameters so the adapter knows where to send updates
-      processing_params = Map.put(processing_params, "caller_pid", caller_pid)
+          processing_params = Map.put(processing_params, "caller_pid", caller_pid)
 
-      # Executes the file processing pipeline using the existing FileProcessingAdapter
-      result = FileProcessorWeb.FileProcessingAdapter.process_from_web(processing_params)
+          # Executes the file processing pipeline
+          result = FileProcessorWeb.FileProcessingAdapter.process_from_web(processing_params)
+          send(caller_pid, {:processing_finished, result})
+        end)
 
-      # Notifies the LiveView that processing is fully complete
-      send(caller_pid, {:processing_finished, result})
-    end)
+        # Sets the UI to loading mode immediately and clears previous flashes
+        {:noreply, socket |> clear_flash() |> assign(processing: true, progress: 0)}
 
-    # Sets the UI to loading mode immediately
-    {:noreply, assign(socket, processing: true, progress: 0)}
+      {:error, message} ->
+        # Blocks execution and shows an error if no input is provided
+        {:noreply, put_flash(socket, :error, message)}
+    end
   end
 
   @impl true
@@ -118,11 +122,14 @@ defmodule FileProcessorWeb.HomeLive do
   end
 
   # Handles failure messages from the background task
+  # Handles failure messages from the background task
   @impl true
   def handle_info({:processing_finished, {:error, reason}}, socket) do
+    error_message = format_api_error(reason)
+
     {:noreply,
      socket
-     |> put_flash(:error, reason)
+     |> put_flash(:error, error_message)
      |> assign(processing: false)
      |> assign(progress: 0)}
   end
@@ -149,6 +156,43 @@ defmodule FileProcessorWeb.HomeLive do
     """
   end
 
+  # Validates that an input source is available for processing
+  defp validate_input_availability(%{"uploaded_files" => files})
+       when is_list(files) and length(files) > 0, do: :ok
+
+  defp validate_input_availability(%{"file_path" => path}) when is_binary(path) and path != "",
+    do: :ok
+
+  defp validate_input_availability(_),
+    do: {:error, "Debes subir archivos o ingresar una ruta válida."}
+
+  # Formats API error structures into human-readable strings
+  defp format_api_error(errors) when is_list(errors) do
+    # Extracts the most relevant high-level error if present
+    case Enum.find(
+           errors,
+           &(&1.reason in [:no_successful_files, :argument_malformed, :invalid_mode])
+         ) do
+      nil -> "No se encontraron archivos válidos o hubo errores de lectura. Revisa la ruta."
+      main_error -> format_api_error(main_error)
+    end
+  end
+
+  defp format_api_error(%{reason: :no_successful_files}) do
+    "Ningún archivo pudo ser procesado con éxito. Revisa que el formato y la estructura sean correctos."
+  end
+
+  defp format_api_error(%{reason: :argument_malformed}) do
+    "Los argumentos de procesamiento son inválidos."
+  end
+
+  defp format_api_error(%{reason: :invalid_mode}) do
+    "El modo de procesamiento seleccionado no es válido."
+  end
+
+  defp format_api_error(msg) when is_binary(msg), do: msg
+
+  defp format_api_error(_), do: "Ocurrió un error desconocido durante el procesamiento."
   # Translates upload errors to string messages
   defp error_to_string(:too_large), do: "El archivo es demasiado grande"
   defp error_to_string(:too_many_files), do: "Demasiados archivos seleccionados"
