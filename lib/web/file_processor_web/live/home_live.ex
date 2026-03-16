@@ -22,6 +22,8 @@ defmodule FileProcessorWeb.HomeLive do
       |> assign(show_all_files: false)
       |> assign(result: nil)
       |> assign(active_tab: "summary")
+      |> assign(processing: false)
+      |> assign(progress: 0)
       |> allow_upload(:uploaded_files, accept: ~w(.csv .json .log), max_entries: 100)
 
     {:ok, socket}
@@ -59,18 +61,25 @@ defmodule FileProcessorWeb.HomeLive do
 
     processing_params = Map.merge(form_params, input_info)
 
-    # Executes the file processing pipeline using the existing FileProcessingAdapter
-    case FileProcessorWeb.FileProcessingAdapter.process_from_web(processing_params) do
-      {:ok, result} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Procesamiento completado con éxito")
-         |> assign(result: result)
-         |> assign(active_tab: "summary")}
+    # Captures the current LiveView process ID to send messages back
+    caller_pid = self()
 
-      {:error, reason} ->
-        {:noreply, put_flash(socket, :error, reason)}
-    end
+    # Spawns an asynchronous task to free the LiveView process and keep UI responsive
+    Task.start(fn ->
+      # CODED DELAY TO SEE THE PROCESS INTERFACE
+      Process.sleep(500)
+      # Passes the caller PID into parameters so the adapter knows where to send updates
+      processing_params = Map.put(processing_params, "caller_pid", caller_pid)
+
+      # Executes the file processing pipeline using the existing FileProcessingAdapter
+      result = FileProcessorWeb.FileProcessingAdapter.process_from_web(processing_params)
+
+      # Notifies the LiveView that processing is fully complete
+      send(caller_pid, {:processing_finished, result})
+    end)
+
+    # Sets the UI to loading mode immediately
+    {:noreply, assign(socket, processing: true, progress: 0)}
   end
 
   @impl true
@@ -88,6 +97,34 @@ defmodule FileProcessorWeb.HomeLive do
   @impl true
   def handle_event("set_tab", %{"tab" => tab}, socket) do
     {:noreply, assign(socket, active_tab: tab)}
+  end
+
+  # Listens for incremental progress updates from the background task
+  @impl true
+  def handle_info({:progress, percent}, socket) do
+    {:noreply, assign(socket, progress: percent)}
+  end
+
+  # Handles the successful completion message from the background task
+  @impl true
+  def handle_info({:processing_finished, {:ok, result}}, socket) do
+    {:noreply,
+     socket
+     |> put_flash(:info, "Procesamiento completado con éxito")
+     |> assign(processing: false)
+     |> assign(progress: 100)
+     |> assign(result: result)
+     |> assign(active_tab: "summary")}
+  end
+
+  # Handles failure messages from the background task
+  @impl true
+  def handle_info({:processing_finished, {:error, reason}}, socket) do
+    {:noreply,
+     socket
+     |> put_flash(:error, reason)
+     |> assign(processing: false)
+     |> assign(progress: 0)}
   end
 
   # Renders a single uploaded file entry to prevent code duplication

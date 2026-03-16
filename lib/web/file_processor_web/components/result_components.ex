@@ -69,6 +69,29 @@ defmodule FileProcessorWeb.ResultsComponents do
     """
   end
 
+  # Renders the progress bar during active background processing
+  def progress_view(assigns) do
+    ~H"""
+    <div
+      class="main-container"
+      style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4rem 2rem;"
+    >
+      <div class="icon-cloud" style="font-size: 4rem; animation: bounce 2s infinite;">⚙️</div>
+      <h2 style="color: #1f2937; margin: 1rem 0; font-size: 1.5rem;">Procesando Archivos...</h2>
+
+      <div style="width: 100%; max-width: 600px; background: #e5e7eb; border-radius: 9999px; height: 1.5rem; overflow: hidden; margin-bottom: 1rem; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);">
+        <div style={"background: linear-gradient(90deg, #4f46e5, #3b82f6); height: 100%; width: #{@progress}%; transition: width 0.3s ease;"}>
+        </div>
+      </div>
+
+      <p style="color: #6b7280; font-weight: bold; font-size: 1.25rem;">{@progress}%</p>
+      <p style="color: #9ca3af; font-size: 0.875rem; margin-top: 0.5rem;">
+        Por favor, no cierres esta ventana.
+      </p>
+    </div>
+    """
+  end
+
   # Renders the benchmark mode results
   def benchmark_results(assigns) do
     ~H"""

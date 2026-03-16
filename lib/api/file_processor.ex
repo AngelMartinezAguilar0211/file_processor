@@ -144,7 +144,8 @@ defmodule API.FileProcessor do
           log_errors(error_log_path, read_result.errors, mode)
           {:error, read_result.errors}
         else
-          report_data = build_report_data(read_result, directory, mode)
+          # Send options to read the LiveView PID
+          report_data = build_report_data(read_result, directory, mode, opts)
 
           # If nothing was successfully processed (status :ok), do not write a report
           if report_data.counts.ok == 0 do
@@ -185,31 +186,40 @@ defmodule API.FileProcessor do
      ]}
   end
 
-  defp build_report_data(read_result, directory, mode) do
+  defp build_report_data(read_result, directory, mode, opts) do
     # Capture start time
     start_us = System.monotonic_time(:microsecond)
+    total_count = read_result.discovered
 
     # Process files one-by-one and accumulate per-type results and parse errors
-    {csv_files, json_files, log_files, parse_errors} =
-      Enum.reduce(read_result.files, {[], [], [], []}, fn file,
-                                                          {csv_acc, json_acc, log_acc, err_acc} ->
+    {csv_files, json_files, log_files, parse_errors, _done} =
+      Enum.reduce(read_result.files, {[], [], [], [], 0}, fn file,
+                                                             {csv_acc, json_acc, log_acc, err_acc,
+                                                              done} ->
         # Branch based on extension
-        case file.ext do
-          ".csv" ->
-            {item, errs} = process_csv(file)
-            partial_errs = partial_errors_from_item(item)
-            {[item | csv_acc], json_acc, log_acc, err_acc ++ errs ++ partial_errs}
+        {res_csv, res_json, res_log, res_errs} =
+          case file.ext do
+            ".csv" ->
+              {item, errs} = process_csv(file)
+              partial_errs = partial_errors_from_item(item)
+              {[item | csv_acc], json_acc, log_acc, err_acc ++ errs ++ partial_errs}
 
-          ".json" ->
-            {item, errs} = process_json(file)
-            partial_errs = partial_errors_from_item(item)
-            {csv_acc, [item | json_acc], log_acc, err_acc ++ errs ++ partial_errs}
+            ".json" ->
+              {item, errs} = process_json(file)
+              partial_errs = partial_errors_from_item(item)
+              {csv_acc, [item | json_acc], log_acc, err_acc ++ errs ++ partial_errs}
 
-          ".log" ->
-            {item, errs} = process_log(file)
-            partial_errs = partial_errors_from_item(item)
-            {csv_acc, json_acc, [item | log_acc], err_acc ++ errs ++ partial_errs}
-        end
+            ".log" ->
+              {item, errs} = process_log(file)
+              partial_errs = partial_errors_from_item(item)
+              {csv_acc, json_acc, [item | log_acc], err_acc ++ errs ++ partial_errs}
+          end
+
+        # Progress sender
+        new_done = done + 1
+        broadcast_progress(opts, new_done, total_count)
+
+        {res_csv, res_json, res_log, res_errs, new_done}
       end)
 
     # Reverse to preserve original processing order
@@ -226,9 +236,6 @@ defmodule API.FileProcessor do
       json: length(json_files),
       log: length(log_files)
     }
-
-    # Total discovered paths
-    total_count = read_result.discovered
 
     # Count ok items based on status
     ok_count =
@@ -264,21 +271,21 @@ defmodule API.FileProcessor do
     }
   end
 
-  defp build_report_data_parallel(read_result, directory, mode, opts, error_log_path) do
+  defp build_report_data_parallel(discover_result, directory, mode, opts, error_log_path) do
     # Capture start time
     start_us = System.monotonic_time(:microsecond)
 
     # Store parent pid so workers can send results
     parent = self()
 
-    total_jobs = length(read_result.paths)
+    total_jobs = length(discover_result.paths)
 
     # Resolve parallel options while preserving previous defaults
     {max_workers, timeout_ms, retries} = normalize_parallel_opts(opts, total_jobs)
 
     # Prepare a job queue with stable ordering and retry budget per file
     job_queue =
-      read_result.paths
+      discover_result.paths
       |> Enum.with_index()
       |> Enum.map(fn {path, idx} ->
         %{
@@ -304,6 +311,7 @@ defmodule API.FileProcessor do
         timeout_ms,
         error_log_path,
         mode,
+        opts,
         total_jobs,
         0,
         [],
@@ -329,7 +337,7 @@ defmodule API.FileProcessor do
       log: length(log_files)
     }
 
-    total_count = read_result.discovered
+    total_count = discover_result.discovered
 
     ok_count =
       Enum.count(csv_files, &(&1.status == :ok)) +
@@ -339,7 +347,7 @@ defmodule API.FileProcessor do
     failed_count = total_count - ok_count
 
     # Convert discovery errors into report-friendly errors
-    discovery_errors_norm = Enum.map(read_result.errors, &normalize_read_error/1)
+    discovery_errors_norm = Enum.map(discover_result.errors, &normalize_read_error/1)
 
     # Convert worker read failures into report-friendly errors
     worker_read_errors_norm = Enum.map(read_errors_raw, &normalize_read_error/1)
@@ -367,7 +375,7 @@ defmodule API.FileProcessor do
     }
 
     # Return report_data plus read stats for run/4 to decide whether to write the report
-    {report_data, read_ok_count, read_result.errors ++ read_errors_raw}
+    {report_data, read_ok_count, discover_result.errors ++ read_errors_raw}
   end
 
   #
@@ -477,6 +485,7 @@ defmodule API.FileProcessor do
   end
 
   # Formats run results for benchmark printing
+  defp format_benchmark_result({:ok, _path, _data}), do: "OK"
   defp format_benchmark_result({:ok, _path}), do: "OK"
   defp format_benchmark_result({:error, errors}), do: "error (#{length(errors)} issues)"
   defp format_benchmark_result(other), do: inspect(other)
@@ -678,6 +687,7 @@ defmodule API.FileProcessor do
          _timeout_ms,
          _error_log_path,
          _mode,
+         _opts,
          _total,
          _done,
          csv_acc,
@@ -702,6 +712,7 @@ defmodule API.FileProcessor do
          timeout_ms,
          error_log_path,
          mode,
+         opts,
          total,
          done,
          csv_acc,
@@ -725,6 +736,7 @@ defmodule API.FileProcessor do
               timeout_ms,
               error_log_path,
               mode,
+              opts,
               total,
               done,
               csv_acc,
@@ -741,7 +753,7 @@ defmodule API.FileProcessor do
             new_done = done + 1
             new_read_ok_count = read_ok_count + 1
 
-            print_parallel_progress(new_done, total, path, item.status)
+            print_parallel_progress(new_done, total, path, item.status, opts)
 
             {csv_acc2, json_acc2, log_acc2} =
               case type do
@@ -774,6 +786,7 @@ defmodule API.FileProcessor do
               timeout_ms,
               error_log_path,
               mode,
+              opts,
               total,
               new_done,
               csv_acc2,
@@ -798,6 +811,7 @@ defmodule API.FileProcessor do
               timeout_ms,
               error_log_path,
               mode,
+              opts,
               total,
               done,
               csv_acc,
@@ -835,6 +849,7 @@ defmodule API.FileProcessor do
                 timeout_ms,
                 error_log_path,
                 mode,
+                opts,
                 total,
                 done,
                 csv_acc,
@@ -846,7 +861,7 @@ defmodule API.FileProcessor do
               )
             else
               new_done = done + 1
-              print_parallel_progress(new_done, total, meta.path, :failed)
+              print_parallel_progress(new_done, total, meta.path, :failed, opts)
 
               # Build a failed item structure consistent with the report format
               {type, failed_item} =
@@ -874,6 +889,7 @@ defmodule API.FileProcessor do
                 timeout_ms,
                 error_log_path,
                 mode,
+                opts,
                 total,
                 new_done,
                 csv_acc2,
@@ -898,6 +914,7 @@ defmodule API.FileProcessor do
               timeout_ms,
               error_log_path,
               mode,
+              opts,
               total,
               done,
               csv_acc,
@@ -946,6 +963,7 @@ defmodule API.FileProcessor do
                 timeout_ms,
                 error_log_path,
                 mode,
+                opts,
                 total,
                 done,
                 csv_acc,
@@ -957,12 +975,9 @@ defmodule API.FileProcessor do
               )
             else
               new_done = done + 1
+              print_parallel_progress(new_done, total, meta.path, :failed, opts)
 
-              print_parallel_progress(new_done, total, meta.path, :failed)
-
-              # Build a failed item structure consistent with the report format
-              {type, failed_item} =
-                failed_item_from_meta(meta, "timeout: #{inspect(timeout_ms)}")
+              {type, failed_item} = failed_item_from_meta(meta, "timeout: #{inspect(timeout_ms)}")
 
               timeout_error = %{path: meta.path, error: "timeout: #{inspect(timeout_ms)}"}
               raw_timeout_error = %{path: meta.path, reason: :timeout, details: timeout_ms}
@@ -988,6 +1003,7 @@ defmodule API.FileProcessor do
                 timeout_ms,
                 error_log_path,
                 mode,
+                opts,
                 total,
                 new_done,
                 csv_acc2,
@@ -1000,7 +1016,7 @@ defmodule API.FileProcessor do
             end
         end
 
-      # Normal DOWN messages arrive after successful completion; ignore them to prevent duplicates
+      # Normal DOWN messages arrive after successful completion; ignore them
       {:DOWN, _ref, :process, _pid, :normal} ->
         collect_parallel_results(
           queue,
@@ -1010,6 +1026,7 @@ defmodule API.FileProcessor do
           timeout_ms,
           error_log_path,
           mode,
+          opts,
           total,
           done,
           csv_acc,
@@ -1020,7 +1037,7 @@ defmodule API.FileProcessor do
           read_err_acc
         )
 
-      # Abnormal DOWN: worker crashed before producing a valid result
+      # Abnormal DOWN: worker crashed
       {:DOWN, _ref, :process, pid, reason} ->
         case Map.fetch(pid_map, pid) do
           :error ->
@@ -1033,6 +1050,7 @@ defmodule API.FileProcessor do
               timeout_ms,
               error_log_path,
               mode,
+              opts,
               total,
               done,
               csv_acc,
@@ -1070,6 +1088,7 @@ defmodule API.FileProcessor do
                 timeout_ms,
                 error_log_path,
                 mode,
+                opts,
                 total,
                 done,
                 csv_acc,
@@ -1083,7 +1102,7 @@ defmodule API.FileProcessor do
               new_done = done + 1
 
               # Print progress line for crash
-              print_parallel_progress(new_done, total, meta.path, :failed)
+              print_parallel_progress(new_done, total, meta.path, :failed, opts)
 
               # Build a failed item structure consistent with the report format
               {type, failed_item} =
@@ -1115,6 +1134,7 @@ defmodule API.FileProcessor do
                 timeout_ms,
                 error_log_path,
                 mode,
+                opts,
                 total,
                 new_done,
                 csv_acc2,
@@ -1493,10 +1513,23 @@ defmodule API.FileProcessor do
     "[#{timestamp}] error=#{inspect(other)}\n"
   end
 
-  # Prints a single progress line for parallel processing
-  defp print_parallel_progress(done, total, path, status) do
+  # Sends progress percentage back to the LiveView caller
+  defp broadcast_progress(opts, done, total) do
+    case Keyword.get(opts, :caller_pid) do
+      pid when is_pid(pid) ->
+        percent = if total > 0, do: trunc(done / total * 100), else: 100
+        send(pid, {:progress, percent})
+
+      _ ->
+        :ok
+    end
+  end
+
+  # Prints a single progress line for parallel processing and triggers broadcast
+  defp print_parallel_progress(done, total, path, status, opts) do
     filename = Path.basename(path)
     IO.puts("[parallel] #{done}/#{total} processed: #{filename} (#{status})")
+    broadcast_progress(opts, done, total)
   end
 
   # Resolves parallel execution options with safe defaults that preserve previous behavior

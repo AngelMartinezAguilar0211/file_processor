@@ -193,6 +193,13 @@ defmodule FileProcessorWeb.FileProcessingAdapter do
           end
       end
 
+    # Obtains LiveView PID to send progress updates
+    options =
+      case params["caller_pid"] do
+        pid when is_pid(pid) -> Keyword.put(options, :caller_pid, pid)
+        _ -> options
+      end
+
     options
   end
 
@@ -488,4 +495,3 @@ defmodule FileProcessorWeb.FileProcessingAdapter do
 
   defp clean_for_json(data), do: data
 end
-
