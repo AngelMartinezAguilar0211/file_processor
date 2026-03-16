@@ -1,170 +1,180 @@
-<% benchmark_active? = @form[:benchmark_active].value == "true" %>
-<% processing_type = @form[:processing_type].value || "parallel" %>
-<% show_parallel_inputs? = processing_type == "parallel" %>
+<%= if @result == nil do %>
+  <% benchmark_active? = @form[:benchmark_active].value == "true" %>
+  <% processing_type = @form[:processing_type].value || "parallel" %>
+  <% show_parallel_inputs? = processing_type == "parallel" %>
 
-<div class="main-container">
-  <header class="header">
-    <div class="logo">File Processor</div>
-    <nav class="nav">
-      <.link navigate="/">Inicio</.link>
-      <.link navigate="/history">Historial</.link>
-    </nav>
-  </header>
+  <div class="main-container">
+    <header class="header">
+      <div class="logo">File Processor</div>
+      <nav class="nav">
+        <.link navigate="/">Inicio</.link>
+        <.link navigate="/history">Historial</.link>
+      </nav>
+    </header>
 
-  <h1 class="main-title">
-    Obtén métricas relevantes para archivos con extensión csv, json y log
-  </h1>
+    <h1 class="main-title">
+      Obtén métricas relevantes para archivos con extensión csv, json y log
+    </h1>
 
-  <.form
-    for={@form}
-    id="processing-form"
-    phx-change="validate"
-    phx-submit="save"
-    class="processor-form"
-  >
-    <div class="form-grid">
-      <div class="upload-section">
-        <div class="drop-zone" phx-drop-target={@uploads.uploaded_files.ref}>
-          <div class="icon-cloud">☁️</div>
-          <p class="file-types-text">CSV, JSON, LOG</p>
+    <.form
+      for={@form}
+      id="processing-form"
+      phx-change="validate"
+      phx-submit="save"
+      class="processor-form"
+    >
+      <div class="form-grid">
+        <div class="upload-section">
+          <div class="drop-zone" phx-drop-target={@uploads.uploaded_files.ref}>
+            <div class="icon-cloud">☁️</div>
+            <p class="file-types-text">CSV, JSON, LOG</p>
 
-          <label
-            class="btn-upload cursor-pointer"
-            style="display: inline-block; text-align: center;"
-          >
-            Cargar Archivos
-            <.live_file_input
-              upload={@uploads.uploaded_files}
-              class="hidden"
-              style="display: none;"
-            />
-          </label>
-
-          <div id="file-list" style="margin-top: 15px; text-align: left;">
-            <% entries = @uploads.uploaded_files.entries %>
-            <% visible_entries = if @show_all_files, do: entries, else: Enum.take(entries, 2) %>
-            <% hidden_count = length(entries) - 2 %>
-
-            <%= for entry <- visible_entries do %>
-              <.file_entry entry={entry} upload={@uploads.uploaded_files} />
-            <% end %>
-
-            <%= if hidden_count > 0 do %>
-              <button
-                type="button"
-                phx-click="toggle-files"
-                style="font-size: 0.875rem; color: #3b82f6; text-align: center; margin-top: 8px; font-style: italic; background: none; border: none; cursor: pointer; width: 100%; text-decoration: underline;"
-              >
-                <%= if @show_all_files do %>
-                  Mostrar menos
-                <% else %>
-                  (y {hidden_count} {if hidden_count == 1, do: "archivo más", else: "archivos más"}...)
-                <% end %>
-              </button>
-            <% end %>
-          </div>
-
-          <p class="path-divider">o escribe la ruta de tu archivo aquí:</p>
-          <input
-            type="text"
-            name={@form[:file_path].name}
-            value={@form[:file_path].value}
-            class="input-path"
-            placeholder="C:\usuarios\documentos\archivo.csv"
-          />
-        </div>
-      </div>
-
-      <div class="options-section">
-        <h2 class="section-label">Opciones</h2>
-
-        <%= if not benchmark_active? do %>
-          <p class="input-label-small">Tipo de Procesamiento</p>
-          <div class="processing-cards">
-            <div class="card">
-              <input
-                type="radio"
-                name={@form[:processing_type].name}
-                value="parallel"
-                id="parallel"
-                checked={processing_type == "parallel"}
+            <label
+              class="btn-upload cursor-pointer"
+              style="display: inline-block; text-align: center;"
+            >
+              Cargar Archivos
+              <.live_file_input
+                upload={@uploads.uploaded_files}
+                class="hidden"
+                style="display: none;"
               />
-              <label for="parallel">
-                <span class="radio-dot"></span> Paralelo
-              </label>
-            </div>
-            <div class="card">
-              <input
-                type="radio"
-                name={@form[:processing_type].name}
-                value="sequential"
-                id="sequential"
-                checked={processing_type == "sequential"}
-              />
-              <label for="sequential">
-                <span class="radio-dot"></span> Secuencial
-              </label>
-            </div>
-          </div>
-        <% end %>
+            </label>
 
-        <div class="benchmark-row">
-          <span class="benchmark-text">Benchmark</span>
-          <label class="switch">
-            <input type="hidden" name={@form[:benchmark_active].name} value="false" />
-            <input
-              type="checkbox"
-              name={@form[:benchmark_active].name}
-              value="true"
-              checked={benchmark_active?}
-            />
-            <span class="slider"></span>
-          </label>
-        </div>
+            <div id="file-list" style="margin-top: 15px; text-align: left;">
+              <% entries = @uploads.uploaded_files.entries %>
+              <% visible_entries = if @show_all_files, do: entries, else: Enum.take(entries, 2) %>
+              <% hidden_count = length(entries) - 2 %>
 
-        <%= if not benchmark_active? do %>
-          <h2 class="section-label">Detalles</h2>
-          <div class="details-grid">
+              <%= for entry <- visible_entries do %>
+                <.file_entry entry={entry} upload={@uploads.uploaded_files} />
+              <% end %>
+
+              <%= if hidden_count > 0 do %>
+                <button
+                  type="button"
+                  phx-click="toggle-files"
+                  style="font-size: 0.875rem; color: #3b82f6; text-align: center; margin-top: 8px; font-style: italic; background: none; border: none; cursor: pointer; width: 100%; text-decoration: underline;"
+                >
+                  <%= if @show_all_files do %>
+                    Mostrar menos
+                  <% else %>
+                    (y {hidden_count} {if hidden_count == 1,
+                      do: "archivo más",
+                      else: "archivos más"}...)
+                  <% end %>
+                </button>
+              <% end %>
+            </div>
+
+            <p class="path-divider">o escribe la ruta de tu archivo aquí:</p>
             <input
               type="text"
-              name={@form[:report_name].name}
-              value={@form[:report_name].value}
-              placeholder="Nombre del reporte"
-              class="input-field"
+              name={@form[:file_path].name}
+              value={@form[:file_path].value}
+              class="input-path"
+              placeholder="C:\usuarios\documentos\archivo.csv"
             />
-
-            <%= if show_parallel_inputs? do %>
-              <input
-                type="text"
-                name={@form[:retry_count].name}
-                value={@form[:retry_count].value}
-                placeholder="Reintentos por Archivo"
-                class="input-field"
-              />
-              <input
-                type="text"
-                name={@form[:max_workers].name}
-                value={@form[:max_workers].value}
-                placeholder="Max Workers"
-                class="input-field"
-              />
-              <input
-                type="text"
-                name={@form[:timeout].name}
-                value={@form[:timeout].value}
-                placeholder="Timeout (ms)"
-                class="input-field"
-              />
-            <% end %>
           </div>
-        <% end %>
-      </div>
-    </div>
+        </div>
 
-    <div class="footer-action">
-      <button type="submit" class="btn-submit" phx-disable-with="Preparando...">
-        Iniciar Proceso
-      </button>
-    </div>
-  </.form>
-</div>
+        <div class="options-section">
+          <h2 class="section-label">Opciones</h2>
+          <%= if not benchmark_active? do %>
+            <p class="input-label-small">Tipo de Procesamiento</p>
+            <div class="processing-cards">
+              <div class="card">
+                <input
+                  type="radio"
+                  name={@form[:processing_type].name}
+                  value="parallel"
+                  id="parallel"
+                  checked={processing_type == "parallel"}
+                />
+                <label for="parallel"><span class="radio-dot"></span> Paralelo</label>
+              </div>
+              <div class="card">
+                <input
+                  type="radio"
+                  name={@form[:processing_type].name}
+                  value="sequential"
+                  id="sequential"
+                  checked={processing_type == "sequential"}
+                />
+                <label for="sequential"><span class="radio-dot"></span> Secuencial</label>
+              </div>
+            </div>
+          <% end %>
+
+          <div class="benchmark-row">
+            <span class="benchmark-text">Benchmark</span>
+            <label class="switch">
+              <input type="hidden" name={@form[:benchmark_active].name} value="false" />
+              <input
+                type="checkbox"
+                name={@form[:benchmark_active].name}
+                value="true"
+                checked={benchmark_active?}
+              />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <%= if not benchmark_active? do %>
+            <h2 class="section-label">Detalles</h2>
+            <div class="details-grid">
+              <input
+                type="text"
+                name={@form[:report_name].name}
+                value={@form[:report_name].value}
+                placeholder="Nombre del reporte"
+                class="input-field"
+              />
+              <%= if show_parallel_inputs? do %>
+                <input
+                  type="text"
+                  name={@form[:retry_count].name}
+                  value={@form[:retry_count].value}
+                  placeholder="Reintentos por Archivo"
+                  class="input-field"
+                />
+                <input
+                  type="text"
+                  name={@form[:max_workers].name}
+                  value={@form[:max_workers].value}
+                  placeholder="Max Workers"
+                  class="input-field"
+                />
+                <input
+                  type="text"
+                  name={@form[:timeout].name}
+                  value={@form[:timeout].value}
+                  placeholder="Timeout (ms)"
+                  class="input-field"
+                />
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+
+      <div class="footer-action">
+        <button type="submit" class="btn-submit" phx-disable-with="Preparando...">
+          Iniciar Proceso
+        </button>
+      </div>
+    </.form>
+  </div>
+<% else %>
+  <div class="main-container">
+    <header class="header">
+      <div class="logo">File Processor</div>
+      <nav class="nav">
+        <.link navigate="/">Inicio</.link>
+        <.link navigate="/history">Historial</.link>
+      </nav>
+    </header>
+
+    <.results_view result={@result} active_tab={@active_tab} />
+  </div>
+<% end %>

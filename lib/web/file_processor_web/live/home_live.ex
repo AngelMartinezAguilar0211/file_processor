@@ -1,6 +1,9 @@
 defmodule FileProcessorWeb.HomeLive do
   use FileProcessorWeb, :live_view
 
+  # Imports the results component module
+  import FileProcessorWeb.ResultsComponents
+
   @impl true
   def mount(_params, _session, socket) do
     initial_form = %{
@@ -31,25 +34,39 @@ defmodule FileProcessorWeb.HomeLive do
 
   @impl true
   def handle_event("save", %{"file_path" => file_path} = form_params, socket) do
-    uploaded_paths =
+    # Consumes uploaded files and wraps them in a Plug.Upload struct for compatibility
+    uploaded_plugs =
       consume_uploaded_entries(socket, :uploaded_files, fn %{path: path}, entry ->
         dest = Path.join(System.tmp_dir!(), "#{System.system_time()}-#{entry.client_name}")
         File.cp!(path, dest)
-        {:ok, dest}
+
+        upload_struct = %Plug.Upload{
+          path: dest,
+          filename: entry.client_name,
+          content_type: entry.client_type
+        }
+
+        {:ok, upload_struct}
       end)
 
+    # Merges the processed file inputs with the rest of the form parameters
     input_info =
-      if uploaded_paths != [] do
-        %{"uploaded_files" => uploaded_paths}
+      if uploaded_plugs != [] do
+        %{"uploaded_files" => uploaded_plugs}
       else
         %{"file_path" => file_path}
       end
 
     processing_params = Map.merge(form_params, input_info)
 
-    case validate_input_availability(processing_params) do
-      :ok ->
-        {:noreply, put_flash(socket, :info, "Archivos listos. Iniciando procesamiento...")}
+    # Executes the file processing pipeline using the existing FileProcessingAdapter
+    case FileProcessorWeb.FileProcessingAdapter.process_from_web(processing_params) do
+      {:ok, result} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Procesamiento completado con éxito")
+         |> assign(result: result)
+         |> assign(active_tab: "summary")}
 
       {:error, reason} ->
         {:noreply, put_flash(socket, :error, reason)}
@@ -65,6 +82,12 @@ defmodule FileProcessorWeb.HomeLive do
   @impl true
   def handle_event("toggle-files", _params, socket) do
     {:noreply, assign(socket, show_all_files: !socket.assigns.show_all_files)}
+  end
+
+  # Handles dynamic tab switching for the results view
+  @impl true
+  def handle_event("set_tab", %{"tab" => tab}, socket) do
+    {:noreply, assign(socket, active_tab: tab)}
   end
 
   # Renders a single uploaded file entry to prevent code duplication
@@ -83,23 +106,14 @@ defmodule FileProcessorWeb.HomeLive do
         &times;
       </button>
     </div>
-
     <%= for err <- upload_errors(@upload, @entry) do %>
       <p style="color: #ef4444; font-size: 0.75rem; margin-top: 2px;">{error_to_string(err)}</p>
     <% end %>
     """
   end
 
+  # Translates upload errors to string messages
   defp error_to_string(:too_large), do: "El archivo es demasiado grande"
   defp error_to_string(:too_many_files), do: "Demasiados archivos seleccionados"
   defp error_to_string(:not_accepted), do: "Tipo de archivo no aceptado"
-
-  defp validate_input_availability(%{"uploaded_files" => files})
-       when is_list(files) and length(files) > 0, do: :ok
-
-  defp validate_input_availability(%{"file_path" => path}) when is_binary(path) and path != "",
-    do: :ok
-
-  defp validate_input_availability(_),
-    do: {:error, "Debes subir archivos o ingresar una ruta válida."}
 end

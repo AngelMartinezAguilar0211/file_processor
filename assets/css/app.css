@@ -6,7 +6,7 @@
 }
 
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
     background-color: #ffffff;
     color: #333;
     line-height: 1.6;
@@ -174,14 +174,21 @@ body {
     height: 22px;
 }
 
-.switch input { opacity: 0; width: 0; height: 0; }
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
 
 .slider {
     position: absolute;
     cursor: pointer;
-    top: 0; left: 0; right: 0; bottom: 0;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     background-color: #ccc;
-    transition: .4s;
+    transition: 0.4s;
     border-radius: 34px;
 }
 
@@ -193,12 +200,16 @@ body {
     left: 3px;
     bottom: 3px;
     background-color: white;
-    transition: .4s;
+    transition: 0.4s;
     border-radius: 50%;
 }
 
-input:checked + .slider { background-color: #6c99d6; }
-input:checked + .slider:before { transform: translateX(23px); }
+input:checked + .slider {
+    background-color: #6c99d6;
+}
+input:checked + .slider:before {
+    transform: translateX(23px);
+}
 
 /* Detalles Grid */
 .details-grid {
@@ -271,4 +282,203 @@ input:checked + .slider:before { transform: translateX(23px); }
 .input-path::placeholder {
     color: #ccc;
     font-style: italic;
+} /* Renders the results layout and spacing */
+.results-container {
+    background: white;
+    border-radius: 12px;
+    padding: 2rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    margin-top: 2rem;
+}
+
+/* Section headers for results */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.section-header h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #1f2937;
+    margin: 0;
+}
+
+/* Status badges */
+.status-badge {
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+.status-badge.success {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+/* Grid for summary metrics */
+.metrics-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+/* Individual metric cards */
+.metric-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 1.5rem;
+    border-radius: 10px;
+    color: white;
+    text-align: center;
+}
+.metric-label {
+    font-size: 0.875rem;
+    opacity: 0.9;
+    margin-bottom: 0.5rem;
+}
+.metric-value {
+    font-size: 2rem;
+    font-weight: 700;
+}
+.success-rate {
+    color: #10b981;
+}
+
+/* Processing information blocks */
+.processing-info {
+    background: #f9fafb;
+    padding: 1.5rem;
+    border-radius: 8px;
+    margin-bottom: 2rem;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+}
+.info-label {
+    font-weight: 600;
+    color: #6b7280;
+}
+.info-value {
+    color: #1f2937;
+}
+.info-value.code {
+    font-family: "Courier New", monospace;
+    background: #e5e7eb;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.875rem;
+}
+
+/* LiveView Tabs */
+.tabs-container {
+    margin-bottom: 2rem;
+}
+.tabs-header {
+    display: flex;
+    gap: 0.5rem;
+    border-bottom: 2px solid #e5e7eb;
+    margin-bottom: 1rem;
+}
+
+.tab-button {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    background: transparent;
+    color: #6b7280;
+    font-weight: 500;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s;
+}
+.tab-button:hover {
+    color: #667eea;
+}
+.tab-button.active {
+    color: #667eea;
+    border-bottom-color: #667eea;
+}
+
+/* Detailed Report Viewer */
+.report-viewer {
+    background: #1e293b;
+    border-radius: 8px;
+    padding: 1.5rem;
+}
+
+.report-content {
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 1.5rem;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-family: "Courier New", monospace;
+    font-size: 0.875rem;
+    line-height: 1.6;
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+/* Tab Summary section elements */
+.summary-section {
+    background: #f9fafb;
+    padding: 1.5rem;
+    border-radius: 8px;
+}
+.summary-section h3 {
+    margin-top: 0;
+    color: #1f2937;
+}
+.summary-section pre {
+    background: white;
+    padding: 1rem;
+    border-radius: 6px;
+    border-left: 4px solid #667eea;
+    overflow-x: auto;
+}
+
+/* Action Buttons */
+.action-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid #e5e7eb;
+}
+
+.btn-primary,
+.btn-secondary {
+    padding: 0.75rem 2rem;
+    border-radius: 8px;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-block;
+    transition: all 0.2s;
+    border: none;
+    cursor: pointer;
+}
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+.btn-secondary {
+    background: white;
+    color: #667eea;
+    border: 2px solid #667eea;
+}
+.btn-secondary:hover {
+    background: #667eea;
+    color: white;
 }
