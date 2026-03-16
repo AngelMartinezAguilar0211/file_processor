@@ -1,0 +1,101 @@
+<div class="main-container">
+  <div
+    class="section-header"
+    style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 1rem; margin-bottom: 2rem;"
+  >
+    <div>
+      <h1 style="margin: 0; color: #0f172a;">Historial de Procesamientos</h1>
+      <p style="margin: 0.5rem 0 0 0; color: #64748b;">
+        Registro de todas las ejecuciones guardadas en la base de datos.
+      </p>
+    </div>
+    <.link
+      navigate="/"
+      style="background: #e2e8f0; color: #475569; padding: 0.5rem 1rem; text-decoration: none; border-radius: 6px; font-weight: 500;"
+    >
+      Volver al Inicio
+    </.link>
+  </div>
+
+  <%= if Enum.empty?(@reports) do %>
+    <div style="text-align: center; padding: 3rem; background: #f8fafc; border-radius: 8px; color: #64748b;">
+      <span style="font-size: 3rem;">📭</span>
+      <h2>Aún no hay reportes</h2>
+      <p>Procesa algunos archivos para ver tu historial aquí.</p>
+    </div>
+  <% else %>
+    <div style="background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;">
+      <table style="width: 100%; border-collapse: collapse; text-align: left;">
+        <thead>
+          <tr style="background: #f1f5f9; color: #475569; font-size: 0.875rem; text-transform: uppercase;">
+            <th style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">Fecha y Hora</th>
+            <th style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">Modo</th>
+            <th style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">Archivos</th>
+            <th style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">Tasa de Éxito</th>
+            <th style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">Tiempo (ms)</th>
+            <th style="padding: 1rem; border-bottom: 1px solid #e2e8f0; text-align: center;">
+              Acción
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <%= for report <- @reports do %>
+            <tr style="border-bottom: 1px solid #e2e8f0; transition: background-color 0.2s;">
+              <td style="padding: 1rem; color: #334155; font-weight: 500;">
+                {Calendar.strftime(report.inserted_at, "%Y-%m-%d %H:%M:%S")}
+              </td>
+
+              <td style="padding: 1rem;">
+                <%= if report.mode == "benchmark" do %>
+                  <span style="background: #e0e7ff; color: #4338ca; padding: 0.25rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600;">
+                    BENCHMARK
+                  </span>
+                <% else %>
+                  <span style="background: #dcfce3; color: #166534; padding: 0.25rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600;">
+                    {String.upcase(report.mode || "DESCONOCIDO")}
+                  </span>
+                <% end %>
+              </td>
+
+              <td style="padding: 1rem; color: #475569;">
+                {report.total_files} procesados
+              </td>
+
+              <td style="padding: 1rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  <% success_val =
+                    if is_number(report.success_rate), do: report.success_rate * 1.0, else: 0.0 %>
+                  <% color =
+                    if success_val >= 80,
+                      do: "#16a34a",
+                      else: if(success_val >= 50, do: "#ca8a04", else: "#dc2626") %>
+
+                  <span style={"font-weight: 600; color: #{color};"}>
+                    {Float.round(success_val, 1)}%
+                  </span>
+                </div>
+              </td>
+
+              <td style="padding: 1rem; color: #64748b; font-family: monospace;">
+                <% time_val =
+                  if is_number(report.execution_time_ms),
+                    do: report.execution_time_ms * 1.0,
+                    else: 0.0 %>
+                {Float.round(time_val, 2)} ms
+              </td>
+              <td style="padding: 1rem; text-align: center;">
+                <.link
+                  navigate={"/history/#{report.id}"}
+                  style="background: #3b82f6; color: white; padding: 0.5rem 1rem; border-radius: 6px; text-decoration: none; font-size: 0.875rem; font-weight: 500; transition: background 0.2s;"
+                >
+                  Ver Detalles
+                </.link>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>
+

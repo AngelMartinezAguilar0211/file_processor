@@ -1,0 +1,23 @@
+<div class="main-container">
+  <header class="header">
+    <div class="logo">File Processor</div>
+    <nav class="nav">
+      <.link navigate="/">Inicio</.link>
+      <.link navigate="/history" class="active" style="font-weight: bold; color: #667eea;">
+        Historial
+      </.link>
+    </nav>
+  </header>
+
+  <div style="margin-top: 2rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+    <div>
+      <h2 style="font-size: 1.5rem; font-weight: bold; margin: 0;">Reporte #{@report.id}</h2>
+      <p style="color: #6b7280; font-size: 0.875rem; margin-top: 0.25rem;">
+        Ejecutado el: {Calendar.strftime(@report.inserted_at, "%Y-%m-%d %H:%M:%S")}
+      </p>
+    </div>
+    <.link navigate="/history" class="btn-secondary">Volver al Historial</.link>
+  </div>
+
+  <.results_view result={@result} active_tab={@active_tab} />
+</div>
