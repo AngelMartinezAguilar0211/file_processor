@@ -43,7 +43,8 @@ npm-debug.log
 
 /bin/
 
-/data/
+# DELETED DATA IGNORE FOR TESTS
+# /data/
 
 /priv/static/reports/
 
